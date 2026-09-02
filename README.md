@@ -31,13 +31,14 @@
 
 #### 解压后进入解压目录
 例如解压到D盘根目录：D:\CatgirlMentor-main
-### 使用PowerShell
+
+### 打开PowerShell依次输入以下指令
 ```bash
+# 进入项目目录
 cd D:\CatgirlMentor-main
+# 创建虚拟环境
 python -m venv .venv
-```
-### Windows PowerShell 激活：
-```bash
+# 激活虚拟环境
 .venv\Scripts\Activate.ps1
 ```
 
