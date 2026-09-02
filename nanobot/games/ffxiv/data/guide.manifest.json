@@ -1,0 +1,9 @@
+{
+  "builtAt": "2026-09-01T15:36:48.627914+00:00",
+  "chunkCount": 2557,
+  "databaseFile": "guide.sqlite3",
+  "databaseSha256": "ea64cc6c29fba36712ea86871ea42ec0c4b4469e1a33f90d4ba227c1dc856851",
+  "documentCount": 488,
+  "schemaVersion": 1,
+  "sourceDigest": "f00799275ab28b1912613856c6fcc6e52f5e5b256900d94de0c82c5962887683"
+}

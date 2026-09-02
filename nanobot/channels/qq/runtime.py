@@ -183,7 +183,7 @@ class QQConfig(Base):
     secret: str = ""
     allow_from: list[str] = Field(default_factory=list)
     msg_format: Literal["plain", "markdown"] = "plain"
-    ack_message: str = "⏳ Processing..."
+    ack_message: str = ""
 
     # Optional: directory to save inbound attachments. If empty, use nanobot get_media_dir("qq").
     media_dir: str = ""

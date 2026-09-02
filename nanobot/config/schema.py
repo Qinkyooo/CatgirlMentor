@@ -14,6 +14,7 @@ from nanobot.cron.types import CronSchedule
 if TYPE_CHECKING:
     from nanobot.agent.tools.cli_apps import CliAppsToolConfig
     from nanobot.agent.tools.filesystem import FileToolsConfig
+    from nanobot.agent.tools.games import GamesToolConfig
     from nanobot.agent.tools.image_generation import ImageGenerationToolConfig
     from nanobot.agent.tools.self import MyToolConfig
     from nanobot.agent.tools.shell import ExecToolConfig
@@ -30,8 +31,8 @@ class ChannelsConfig(Base):
 
     model_config = ConfigDict(extra="allow")
 
-    send_progress: bool = True  # stream agent's text progress to the channel
-    send_tool_hints: bool = True  # stream tool-call hints (e.g. read_file("…"))
+    send_progress: bool = False  # stream agent's text progress to the channel; off by default to keep chat channels quiet (per-channel sendProgress can re-enable)
+    send_tool_hints: bool = False  # stream tool-call hints (e.g. read_file("…")); off by default (per-channel sendToolHints can re-enable)
     show_reasoning: bool = True  # surface model reasoning when channel implements it
     extract_document_text: bool = True  # Deprecated and ignored; documents are read on demand
     send_max_retries: int = Field(default=3, ge=0, le=10)  # Max delivery attempts (initial send included)
@@ -396,6 +397,9 @@ class ToolsConfig(Base):
     file: FileToolsConfig = Field(default_factory=lambda: _lazy_default("nanobot.agent.tools.filesystem", "FileToolsConfig"))
     cli_apps: CliAppsToolConfig = Field(default_factory=lambda: _lazy_default("nanobot.agent.tools.cli_apps", "CliAppsToolConfig"))
     my: MyToolConfig = Field(default_factory=lambda: _lazy_default("nanobot.agent.tools.self", "MyToolConfig"))
+    games: GamesToolConfig = Field(
+        default_factory=lambda: _lazy_default("nanobot.agent.tools.games", "GamesToolConfig"),
+    )
     image_generation: ImageGenerationToolConfig = Field(
         default_factory=lambda: _lazy_default("nanobot.agent.tools.image_generation", "ImageGenerationToolConfig"),
     )
@@ -680,6 +684,7 @@ def _resolve_tool_config_refs() -> None:
 
     from nanobot.agent.tools.cli_apps import CliAppsToolConfig
     from nanobot.agent.tools.filesystem import FileToolsConfig
+    from nanobot.agent.tools.games import GamesToolConfig
     from nanobot.agent.tools.image_generation import ImageGenerationToolConfig
     from nanobot.agent.tools.self import MyToolConfig
     from nanobot.agent.tools.shell import ExecToolConfig
@@ -690,6 +695,7 @@ def _resolve_tool_config_refs() -> None:
     mod.ExecToolConfig = ExecToolConfig  # type: ignore[attr-defined]
     mod.FileToolsConfig = FileToolsConfig  # type: ignore[attr-defined]
     mod.CliAppsToolConfig = CliAppsToolConfig  # type: ignore[attr-defined]
+    mod.GamesToolConfig = GamesToolConfig  # type: ignore[attr-defined]
     mod.WebToolsConfig = WebToolsConfig  # type: ignore[attr-defined]
     mod.WebSearchConfig = WebSearchConfig  # type: ignore[attr-defined]
     mod.WebFetchConfig = WebFetchConfig  # type: ignore[attr-defined]

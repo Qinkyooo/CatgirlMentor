@@ -190,6 +190,7 @@ def onboard(
 
     # Run interactive wizard if enabled
     if wizard:
+        from nanobot.cli.game_setup import prepare_game_knowledge
         from nanobot.cli.onboard import run_onboard
 
         try:
@@ -199,6 +200,10 @@ def onboard(
                 return
 
             loaded_config = result.config
+            game_setup = prepare_game_knowledge(loaded_config)
+            console.print(
+                f"[green]✓[/green] {game_setup.message}: {game_setup.database}"
+            )
             save_config(loaded_config, config_path)
             console.print(f"[green]✓[/green] Config saved at {config_path}")
         except Exception as e:
