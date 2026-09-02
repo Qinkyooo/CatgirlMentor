@@ -1,6 +1,6 @@
 <div align="center">
 
-# 🐈‍⬛ nanobot × FFXIV · 艾欧泽亚猫娘导师
+# nanobot × FFXIV · 艾欧泽亚猫娘导师
 
 **基于开源 AI Agent 框架 [nanobot](https://github.com/HKUDS/nanobot) 的二次开发：给自托管智能体装上一位 FF14 中文导师——一只来自艾欧泽亚的猫娘（米可特族 · 逐日之民），会查鱼、看房、比价、翻攻略，也能陪你扮演任何角色。**
 
@@ -39,7 +39,7 @@
 
 ## 🚀 快速开始（推荐从源码运行）
 
-**前置**：Python 3.11+、Git。
+**前置**：Python 3.11
 
 ```bash
 
