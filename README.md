@@ -24,15 +24,16 @@
 - 📜 **回答纪律**：所有游戏数据回答不编造数值 / 时间 / 价格；来源默认不展示、按需追溯；玩家上报类数据强制附带免责声明。
 
 ## 🚀 快速开始（推荐从源码运行）
+<img width="517" height="423" alt="image" src="https://github.com/user-attachments/assets/4820c967-a329-4bf9-bcab-913e1c4afcab" />
 
-**前置**：Python 3.11
+**前置**：Python 3.11+node.js
+请先确认是否满足前置条件，如未满足请先看[安装前置](#手动安装)
 
-建议直接下载源码解压
-解压后进入解压目录
-例如解压到D盘根目录：D：\nanobot-main
+#### 解压后进入解压目录
+例如解压到D盘根目录：D:\CatgirlMentor-main
 ### 使用PowerShell
 ```bash
-cd D:\nanobot-main
+cd D:\CatgirlMentor-main
 python -m venv .venv
 ```
 ### Windows PowerShell 激活：
@@ -164,6 +165,25 @@ nanobot gateway logs
 | `sendProgress` / `sendToolHints` 默认改为 `false` | `nanobot/config/schema.py` | 渠道默认不再刷进度与工具调用噪音（可用 `sendProgress` 按频道重开） |
 | QQ `ack_message` 默认改为空串 | `nanobot/channels/qq/runtime.py` | QQ 不再回复 “Processing…” 占位 |
 | onboard 向导集成知识库准备 | `nanobot/cli/commands.py` + `cli/game_setup.py` | 首次配置即自动校验 / 绑定内置知识库 |
+
+##  手动安装
+
+1. **Python**
+官网：[python下载](https://www.python.org/downloads/windows/)
+
+- 下载 Windows 64‑bit Installer 
+- ⚠️第一页务必勾选 **Add Python to PATH**
+- Install Now
+
+2. **Node.js（自带 npm）**
+官网：[node.js下载](https://nodejs.org/en/download)
+
+- 下载 LTS 长期支持版 `.msi`
+- 默认下一步，保持 Add to PATH 勾选。
+
+> 
+> 全部装完，**关闭所有终端，重新打开 PowerShell 验证**
+
 
 ## ⚙️ 配置参考
 
