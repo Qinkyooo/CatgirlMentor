@@ -1,4 +1,4 @@
-# nanobot Documentation
+﻿# nanobot Documentation
 
 Use these docs to get a working agent first, then open a task guide only when you need the next capability. Source-level design and extension details are kept in the contributor section.
 
@@ -78,7 +78,7 @@ These pages explain implementation and extension points. You do not need them to
 | Goal | Read |
 |---|---|
 | Understand source ownership and runtime flow | [Architecture](./architecture.md) |
-| Set up a development environment | [Development](./development.md) and [CONTRIBUTING.md](../CONTRIBUTING.md) |
+| Set up a development environment | [Development](./development.md) and [CONTRIBUTING.md](https://github.com/HKUDS/nanobot/blob/main/CONTRIBUTING.md) |
 | Add a channel package | [Channel Package Guide](./channel-package-guide.md) |
 | Build the WebUI source | [WebUI Development](../webui/README.md) |
 

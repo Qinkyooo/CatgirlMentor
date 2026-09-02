@@ -1,4 +1,4 @@
-This file provides guidance to AI coding agents working with this repository.
+﻿This file provides guidance to AI coding agents working with this repository.
 
 ## Project Overview
 
@@ -67,7 +67,7 @@ Messages flow through an async `MessageBus` (`nanobot/bus/queue.py`) that decoup
 
 ## Contribution Flow
 
-See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for contribution flow and PR guidelines.
+See [the upstream nanobot CONTRIBUTING.md](https://github.com/HKUDS/nanobot/blob/main/CONTRIBUTING.md) for contribution flow and PR guidelines.
 
 ## Code Style
 

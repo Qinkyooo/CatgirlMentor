@@ -1,4 +1,4 @@
-# Install and Quick Start
+﻿# Install and Quick Start
 
 This guide has one goal: get a normal nanobot reply in your browser. Do not add chat apps, MCP servers, fallback models, or deployment until this path works.
 
@@ -176,7 +176,7 @@ The source path follows current `main` and can be newer than the published packa
 install keeps Python pointed at the checkout; `nanobot` runs `tui/` with Bun, and
 `nanobot webui` automatically rebuilds `webui/` when its bundled assets are stale. All normal
 commands remain the same as a stable install. For development details, follow
-[`../CONTRIBUTING.md`](../CONTRIBUTING.md).
+[`CONTRIBUTING.md`](https://github.com/HKUDS/nanobot/blob/main/CONTRIBUTING.md).
 
 If the package is installed but the shell cannot find `nanobot`, use the runner that owns the installation. The recommended installer prints the exact command to reuse. Common forms are:
 
