@@ -46,14 +46,19 @@
 建议直接下载源码解压
 
 解压后进入解压目录
+
 例如解压到D盘根目录：D：\nanobot-main
 使用PowerShell
+
 cd D:\nanobot-main
 python -m venv .venv
 # Windows PowerShell 激活：
+
 .venv\Scripts\Activate.ps1
 # 安装
+
 python -m pip install  .
+
 #确认版本
 nanobot --version
 ```
@@ -63,11 +68,14 @@ nanobot --version
 ```bash
 # 配置向导：
 nanobot onboard --wizard
+
 #也可以直接运行：
 nanobot webui
+
 #但后续需要在webui里设置模型
 #注意，这种方式下启动webui如果关闭powershell会停止服务，如需后台运行请在首次运行成功后使用如下命令后台运行
 nanobot webui --background
+
 #查看状态及日志
 nanobot gateway status
 nanobot gateway logs
