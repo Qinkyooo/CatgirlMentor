@@ -41,52 +41,54 @@
 
 **前置**：Python 3.11
 
-```bash
-
 建议直接下载源码解压
-
 解压后进入解压目录
-
 例如解压到D盘根目录：D：\nanobot-main
-使用PowerShell
-
+### 使用PowerShell
+```bash
 cd D:\nanobot-main
 python -m venv .venv
-# Windows PowerShell 激活：
-
+```
+### Windows PowerShell 激活：
+```bash
 .venv\Scripts\Activate.ps1
-# 安装
+```
 
+### 安装
+```bash
 python -m pip install  .
-
-#确认版本
+```
+### 确认版本
+```bash
 nanobot --version
 ```
 
-**首次运行**（在浏览器里完成模型配置）：
+**快速配置**：
 
 ```bash
-# 配置向导：
 nanobot onboard --wizard
-
-#也可以直接运行：
+```
+### 也可以直接运行：
+```bash
 nanobot webui
-
-#但后续需要在webui里设置模型
-#注意，这种方式下启动webui如果关闭powershell会停止服务，如需后台运行请在首次运行成功后使用如下命令后台运行
+```
+### 但后续需要在webui里设置模型
+### 注意，这种方式下启动webui如果关闭powershell会停止服务，如需后台运行请在首次运行成功后使用如下命令后台运行
+```bash
 nanobot webui --background
-
-#查看状态及日志
+```
+### 查看状态及日志
+```bash
 nanobot gateway status
 nanobot gateway logs
 ```
-
+### 如需随电脑启动可让bot生成启动项随电脑启动
 
 
 
 
 **接入聊天软件（可选）**：本 fork 的 QQ / Telegram 等渠道与上游一致，可参考 [`docs/guides/qq-ai-agent.md`](./docs/guides/qq-ai-agent.md)；区别只是默认行为更安静（见下文「默认行为调优」）。
-#如需使用QQ等聊天渠道，首次发送消息会受到一个配对码，在web中填写配对码即可成功配对，全渠道默认独立会话，如需在微信和QQ等不同渠道中共用会话历史可直接让bot替你修改
+### 如需使用QQ等聊天渠道，首次发送消息会受到一个配对码，在web中填写配对码即可成功配对，全渠道默认独立会话，如需在微信和QQ等不同渠道中共用会话历史可直接让bot替你修改
 
 ## 💬 试试这样问
 
