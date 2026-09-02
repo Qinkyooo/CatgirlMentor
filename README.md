@@ -48,8 +48,7 @@
 解压后进入解压目录
 例如解压到D盘根目录：D：\nanobot-main
 使用PowerShell
-cd D：\nanobot-main
-cd nanobot
+cd D:\nanobot-main
 python -m venv .venv
 # Windows PowerShell 激活：
 .venv\Scripts\Activate.ps1
