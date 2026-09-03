@@ -44,7 +44,7 @@ python -m venv .venv
 
 ### 安装
 ```bash
-python -m pip install  .
+python -m pip install -e .
 ```
 ### 确认版本
 ```bash
