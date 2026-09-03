@@ -1,2 +1,8 @@
 # Ensure shell scripts always use LF line endings (Docker/Linux compat)
 *.sh text eol=lf
+# Windows batch/cmd launchers must stay CRLF in the blob: cmd.exe misparses
+# LF-only multibyte batch files, so GitHub ZIP downloads would break.
+
+# Windows cmd/bat must be stored byte-for-byte (CRLF) so GitHub ZIP downloads work.
+*.cmd -text
+*.bat -text
