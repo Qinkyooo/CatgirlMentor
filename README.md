@@ -31,8 +31,13 @@
 
 #### 解压后进入解压目录
 例如解压到D盘根目录：D:\CatgirlMentor-main
+- 运行***install.cmd*** 会检测是否满足前置条件，不满足会弹出提示
+- 脚本会启动快速配置，选择供应商并填入Key之后即可正常运行（提示：powershell粘贴的方式是鼠标右键，请确保没有复制到换行符等其他字符）
+- 安装完成后先点击 启动WebUI.cmd即可打开网页端
+- ***启动后台网关.cmd***和***设置开机自启动.cmd***分别是后台运行和随系统启动脚本，不需要web直接通过QQ等渠道聊天的可以用这两个。
+- 根据需要在web中配置功能，快拥有一个会给你发QQ消息的猫娘导师吧！
 
-### 打开PowerShell依次输入以下指令
+### 如果你想自己输入命令，依次执行以下操作
 ```bash
 # 进入项目目录
 cd D:\CatgirlMentor-main
@@ -40,43 +45,30 @@ cd D:\CatgirlMentor-main
 python -m venv .venv
 # 激活虚拟环境
 .venv\Scripts\Activate.ps1
-```
-
-### 安装
-```bash
+# 安装
 python -m pip install -e .
-```
-### 确认版本
-```bash
+# 确认版本
 nanobot --version
-```
-
-**快速配置**：
-
-```bash
+# 快速配置
 nanobot onboard --wizard
-```
-### 也可以直接运行：
-```bash
+# 打开网页端：
 nanobot webui
-```
-### 但后续需要在webui里设置模型
-### 注意，这种方式下启动webui如果关闭powershell会停止服务，如需后台运行请在首次运行成功后使用如下命令后台运行
-```bash
+# 注意，这种方式下启动webui如果关闭powershell会停止服务，如需后台运行请在首次运行成功后使用如下命令后台运行
+# 后台启动网页端（可关闭power shell）
 nanobot webui --background
+# 后台启动（可关闭power shell）
+nanobot gateway --background
 ```
 ### 查看状态及日志
 ```bash
 nanobot gateway status
 nanobot gateway logs
 ```
-### 如需随电脑启动可让bot生成启动项随电脑启动
-
-
 
 
 **接入聊天软件（可选）**：本 fork 的 QQ / Telegram 等渠道与上游一致，可参考 [`docs/guides/qq-ai-agent.md`](./docs/guides/qq-ai-agent.md)；区别只是默认行为更安静（见下文「默认行为调优」）。
-### 如需使用QQ等聊天渠道，首次发送消息会受到一个配对码，在web中填写配对码即可成功配对，全渠道默认独立会话，如需在微信和QQ等不同渠道中共用会话历史可直接让bot替你修改
+## 如需使用QQ等聊天渠道，首次发送消息会受到一个配对码，在web中填写配对码即可成功配对，全渠道默认独立会话，如需在微信和QQ等不同渠道中共用会话历史可直接让bot替你修改
+## 如在QQ等聊天渠道使用过程中更换了人设，但是QQ渠道人设没有发生变化，先发送一次/new重启会话即可
 
 ## 💬 试试这样问
 
