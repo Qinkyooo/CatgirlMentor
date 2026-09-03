@@ -1,29 +1,30 @@
-@echo off
+ï»¿@echo off
+chcp 65001 >nul
 cd /d "%~dp0"
 
 if not exist ".venv\Scripts\nanobot.exe" goto :NotInstalled
 
-echo ÕıÔÚÆô¶¯³£×¤ºóÌ¨Íø¹Ø gateway --background ...
-echo ÁÄÌìÆµµÀÓë¶¨Ê±ÈÎÎñ½«ÔÚºóÌ¨³ÖĞøÔËĞĞ£¬¹Ø±Õ±¾´°¿Ú²»Ó°ÏìºóÌ¨¡£
+echo æ­£åœ¨å¯åŠ¨å¸¸é©»åå°ç½‘å…³ gateway --background ...
+echo èŠå¤©é¢‘é“ä¸å®šæ—¶ä»»åŠ¡å°†åœ¨åå°æŒç»­è¿è¡Œï¼Œå…³é—­æœ¬çª—å£ä¸å½±å“åå°ã€‚
 echo.
 ".venv\Scripts\nanobot.exe" gateway --background
 if errorlevel 1 goto :Failed
 
 echo.
-echo ºóÌ¨Íø¹ØÒÑÆô¶¯¡£
-echo ²é¿´×´Ì¬: ".venv\Scripts\nanobot.exe" gateway status
-echo Í£Ö¹Íø¹Ø: ".venv\Scripts\nanobot.exe" gateway stop
-echo ÔÙ´ÎË«»÷±¾ÎÄ¼ş¿ÉÖØ¸´Æô¶¯£¬»á×Ô¶¯Á¬½ÓÒÑÓĞÍø¹Ø¡£
+echo åå°ç½‘å…³å·²å¯åŠ¨ã€‚
+echo æŸ¥çœ‹çŠ¶æ€: ".venv\Scripts\nanobot.exe" gateway status
+echo åœæ­¢ç½‘å…³: ".venv\Scripts\nanobot.exe" gateway stop
+echo å†æ¬¡åŒå‡»æœ¬æ–‡ä»¶å¯é‡å¤å¯åŠ¨ï¼Œä¼šè‡ªåŠ¨è¿æ¥å·²æœ‰ç½‘å…³ã€‚
 pause
 exit /b 0
 
 :Failed
 echo.
-echo Æô¶¯Ê§°Ü¡£ÈôÊÇÊ×´ÎÊ¹ÓÃ£¬ÇëÏÈË«»÷ install.cmd Íê³É°²×°ÅäÖÃ¡£
+echo å¯åŠ¨å¤±è´¥ã€‚è‹¥æ˜¯é¦–æ¬¡ä½¿ç”¨ï¼Œè¯·å…ˆåŒå‡» install.cmd å®Œæˆå®‰è£…é…ç½®ã€‚
 pause
 exit /b 1
 
 :NotInstalled
-echo ÉĞÎ´°²×°¡£ÇëÏÈË«»÷ install.cmd Íê³É°²×°ºóÔÙÔËĞĞ±¾ÎÄ¼ş¡£
+echo å°šæœªå®‰è£…ã€‚è¯·å…ˆåŒå‡» install.cmd å®Œæˆå®‰è£…åå†è¿è¡Œæœ¬æ–‡ä»¶ã€‚
 pause
 exit /b 1
