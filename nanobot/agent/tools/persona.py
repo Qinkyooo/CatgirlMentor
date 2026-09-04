@@ -75,10 +75,10 @@ class PersonaTool(Tool):
     @property
     def description(self) -> str:
         return (
-            "管理 agent workspace 里生效的角色人设（persona）：status/verify 查看与自检，"
-            "preview 渲染预览，apply 应用人设（冲突内容整体覆盖，只作用于 agent workspace 的 "
-            "SOUL.md/USER.md），clear 退出人设恢复默认，search 收集 FFXIV 剧情台词素材。"
-            "使用本工具无需 exec/python，也不会写错目录。"
+            "管理 agent workspace 里生效的角色人设（只作用于该目录的 SOUL.md/USER.md，"
+            "不会写错位置）：status 查看状态、verify 自检、preview 渲染预览(不写入)、"
+            "apply 应用人设(冲突整体覆盖)、clear 退出恢复默认、search 收集 FFXIV 剧情台词素材。"
+            "创建人设的完整研究流程见 persona 技能。"
         )
 
     def _resolve_profile(self, profile: str | None) -> Path:

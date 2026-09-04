@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-"""Validate, render, apply, clear, and collect bounded persona source data."""
+"""Library backing the built-in ``persona`` tool.
+
+Validate, render, apply, clear, verify, inspect, and collect bounded persona
+source data. There is intentionally no CLI here: the single entry point is the
+``persona`` tool (nanobot/agent/tools/persona.py), which runs in-process and
+always targets the agent workspace.
+"""
 
 from __future__ import annotations
 
-import argparse
 import html
 import json
 import re
-import sys
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -982,110 +986,3 @@ def collect_story_context(
 
     fallback, truncated = merge_and_filter(hits, SHEET_WHITELIST, cap=cap)
     return [{**item, "context": "search-hit"} for item in fallback], truncated or total > MAX_RESULTS
-
-
-def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description=__doc__)
-    commands = parser.add_subparsers(dest="command", required=True)
-
-    render = commands.add_parser("render", help="render a profile preview")
-    render.add_argument("profile", type=Path)
-    render.add_argument("--out", type=Path, required=True)
-
-    apply_cmd = commands.add_parser("apply", help="apply profile blocks (overwrites default persona)")
-    apply_cmd.add_argument("profile", type=Path)
-    apply_cmd.add_argument("soul", type=Path)
-    apply_cmd.add_argument("--user", type=Path)
-
-    clear = commands.add_parser("clear", help="remove persona and restore the default persona blocks")
-    clear.add_argument("soul", type=Path)
-    clear.add_argument("--user", type=Path)
-
-    verify = commands.add_parser(
-        "verify", help="check SOUL.md/USER.md for exactly one persona layout"
-    )
-    verify.add_argument("soul", type=Path)
-    verify.add_argument("--user", type=Path)
-
-    status = commands.add_parser(
-        "status", help="show current persona state (zones, .active, saved personas)"
-    )
-    status.add_argument("soul", type=Path)
-    status.add_argument("--user", type=Path)
-    status.add_argument("--profiles", type=Path, help="personas directory to list")
-
-    search = commands.add_parser("search", help="collect bounded FFCafe dialogue")
-    search.add_argument("name")
-    search.add_argument(
-        "--sheet",
-        action="append",
-        choices=SHEET_WHITELIST,
-        help="exact sheet search; omit to collect quest/cutscene context",
-    )
-    search.add_argument("--cap", type=int, default=MAX_RESULTS)
-    search.add_argument("--limit", type=int, default=MAX_PAGE_SIZE)
-    search.add_argument("--out", type=Path, required=True)
-    return parser
-
-
-def main(argv: Sequence[str] | None = None) -> int:
-    args = _parser().parse_args(argv)
-    try:
-        if args.command == "render":
-            profile = _read_profile(args.profile)
-            preview = render_persona_section(profile) + "\n\n" + render_user_section(profile) + "\n"
-            _write(args.out, preview)
-        elif args.command == "apply":
-            profile = _read_profile(args.profile)
-            apply_profile(profile, args.soul, args.user)
-            write_active(args.profile, profile, args.soul.parent)
-            problems = verify_files(args.soul, args.user)
-            if problems:
-                for problem in problems:
-                    print(f"verify: {problem}")
-                return 2
-        elif args.command == "clear":
-            clear_profile(args.soul, args.user)
-            active = _active_file(args.soul.parent)
-            if active.exists():
-                active.unlink()
-            problems = verify_files(args.soul, args.user)
-            if problems:
-                for problem in problems:
-                    print(f"verify: {problem}")
-                return 2
-        elif args.command == "verify":
-            problems = verify_files(args.soul, args.user)
-            if problems:
-                for problem in problems:
-                    print(f"verify: {problem}")
-                return 2
-            print("verify: OK (single persona layout)")
-        elif args.command == "status":
-            for line in describe_status(args.soul, args.user, args.profiles):
-                print(line)
-            problems = verify_files(args.soul, args.user)
-            return 2 if problems else 0
-        elif args.command == "search":
-            if args.sheet:
-                items, truncated = collect_dialogue(
-                    args.name,
-                    args.sheet,
-                    cap=args.cap,
-                    limit=args.limit,
-                )
-            else:
-                items, truncated = collect_story_context(
-                    _urlopen_fetch,
-                    args.name,
-                    cap=args.cap,
-                )
-            _write(args.out, render_dialogue_source(args.name, items, truncated=truncated))
-        return 0
-    except (OSError, PersonaError) as exc:
-        print(f"error: {exc}", file=sys.stderr)
-        return 2
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

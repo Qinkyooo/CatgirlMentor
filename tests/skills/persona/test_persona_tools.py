@@ -357,13 +357,19 @@ def test_active_record_lifecycle(tmp_path: Path, fresh_ws: Path) -> None:
     soul_path = fresh_ws / "SOUL.md"
     user_path = fresh_ws / "USER.md"
 
-    assert pt.main(["apply", str(profile_path), str(soul_path), "--user", str(user_path)]) == 0
+    data = pt._read_profile(profile_path)
+    pt.apply_profile(data, soul_path, user_path)
+    pt.write_active(profile_path, data, fresh_ws)
     active = pt.read_active(fresh_ws)
     assert active is not None
     assert active["character"]["name"] == "生效角色"
 
-    assert pt.main(["clear", str(soul_path), "--user", str(user_path)]) == 0
+    pt.clear_profile(soul_path, user_path)
+    active_file = pt._active_file(fresh_ws)
+    if active_file.exists():
+        active_file.unlink()
     assert pt.read_active(fresh_ws) is None
+    assert pt.verify_files(soul_path, user_path) == []
 
 
 def test_status_describes_persona(fresh_ws: Path) -> None:
