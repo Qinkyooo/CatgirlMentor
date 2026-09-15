@@ -1,6 +1,6 @@
 ---
 name: memory
-description: Search conversation history and understand Dream-managed profile and memory files.
+description: Search past conversations in the agent's history log.
 ---
 
 # Memory
@@ -16,21 +16,17 @@ description: Search conversation history and understand Dream-managed profile an
 
 ## Search Past Events
 
-Use the `History log` path shown in the system prompt. Always pass it to `grep`;
-never substitute a different project-relative `memory/history.jsonl`, which may belong
-to the selected project. Each JSONL line contains `cursor`, `timestamp`, and `content`.
+Search the exact `History log` path from the system prompt with `grep`; a project-relative
+`memory/history.jsonl` may belong to a different workspace. The log is append-only JSONL,
+with `cursor`, `timestamp`, and `content` per entry, and is not loaded into context.
 
-- For broad searches, start with `output_mode="count"` or the default
-  `files_with_matches` mode before expanding to full content
-- Use `output_mode="content"` plus `context_before` / `context_after` when you need the exact matching lines
-- Use `fixed_strings=true` for literal timestamps or JSON fragments
-- Use `head_limit` / `offset` to page through long histories
+Start broad searches with `output_mode="count"`, then narrow by topic or date and request
+matching content. Use `fixed_strings=true` for literal timestamps or JSON fragments.
+Page long results with `head_limit` / `offset` and use `context_before` / `context_after`
+when nearby entries matter.
 
-Examples (replace `<history-log-path>` with the path from the system prompt):
-- `grep(pattern="keyword", path="<history-log-path>", case_insensitive=true)`
-- `grep(pattern="2026-04-02 10:00", path="<history-log-path>", fixed_strings=true)`
-- `grep(pattern="keyword", path="<history-log-path>", output_mode="count", case_insensitive=true)`
-- `grep(pattern="oauth|token", path="<history-log-path>", output_mode="content", case_insensitive=true)`
+Example (replace `<history-log-path>` with the path from the system prompt):
+`grep(pattern="project-name", path="<history-log-path>", output_mode="content", case_insensitive=true, head_limit=20)`
 
 ## Important
 

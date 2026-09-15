@@ -49,7 +49,11 @@ from nanobot.webui.metadata import (
     WEBUI_TURN_METADATA_KEY,
 )
 from nanobot.webui.outbound_projection import WebUIOutboundProjector
-from nanobot.webui.outbound_wire import WebUIWirePayload, WebUIWirePersistence
+from nanobot.webui.outbound_wire import (
+    WebUIWirePayload,
+    WebUIWirePersistence,
+    project_tool_events,
+)
 from nanobot.webui.session_identity import is_valid_webui_chat_id
 from nanobot.webui.transcript import WEBUI_TRANSCRIPT_INCOMPLETE_KEY
 from nanobot.webui.websocket_logging import websockets_server_logger
@@ -539,9 +543,6 @@ class WebSocketChannel(BaseChannel):
     def default_config(cls) -> dict[str, Any]:
         return WebSocketConfig().model_dump(by_alias=True)
 
-    def _expected_path(self) -> str:
-        return _normalize_config_path(self.config.path)
-
     def _build_ssl_context(self) -> ssl.SSLContext | None:
         cert = self.config.ssl_certfile.strip()
         key = self.config.ssl_keyfile.strip()
@@ -578,9 +579,6 @@ class WebSocketChannel(BaseChannel):
             query,
             headers,
         )
-
-    def _consume_issued_token(self, connection: ServerConnection, token: str) -> bool:
-        return self.gateway.endpoint.consume_issued_token(connection, token)
 
     # -- Server lifecycle and connection ingress ---------------------------
 
@@ -815,6 +813,9 @@ class WebSocketChannel(BaseChannel):
                         "event": "ready",
                         "chat_id": default_chat_id,
                         "client_id": client_id,
+                        **({"terminal": {
+                            "protocolVersion": 1, "gatewayId": self.gateway.tokens.instance_id,
+                        }} if _query_first(query, "terminal_protocol") == "1" else {}),
                     },
                     ensure_ascii=False,
                 )
@@ -1200,7 +1201,7 @@ class WebSocketChannel(BaseChannel):
         if isinstance(lat, (int, float)):
             payload["latency_ms"] = int(lat)
         if progress_event and progress_event.tool_events:
-            payload["tool_events"] = progress_event.tool_events
+            payload["tool_events"] = project_tool_events(progress_event.tool_events)
         agent_ui = msg.metadata.get(OUTBOUND_META_AGENT_UI)
         if agent_ui is not None:
             payload["agent_ui"] = agent_ui
@@ -1388,7 +1389,14 @@ class WebSocketChannel(BaseChannel):
         """Persist as requested, frame, and fan out one encoded WebUI payload."""
         conns = list(self._subs.get(chat_id, ()))
         body: dict[str, Any] = dict(payload)
-        if persistence == "turn_complete":
+        if persistence == "turn_activity":
+            self._persist_turn_transcript_event(
+                chat_id,
+                body,
+                metadata=metadata,
+                phase="activity",
+            )
+        elif persistence == "turn_complete":
             canonical_webui_turn = (metadata or {}).get("webui") is True
             prior_persistence_failure = (
                 canonical_webui_turn
