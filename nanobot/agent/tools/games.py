@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol, cast
-
 from urllib.parse import urlsplit
 
 from pydantic import Field, field_validator

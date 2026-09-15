@@ -4,44 +4,18 @@
 itself is missing. This module covers the other half: a configured/pre-existing
 legacy database path that no longer exists, where the service must point at the
 real in-package location instead of a stale build directory.
-
-The rotation/tool layer imports pydantic, whose compiled extension targets an
-interpreter that is not installed in this checkout, so only the
-`nanobot.agent.tools.base.ToolResult` leaf is stood in for. `knowledge.py` and
-`knowledge_assets.py` are the real production modules.
 """
 
 from __future__ import annotations
 
 import json
-import sys
 import tempfile
-import types
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-REPO = Path(__file__).resolve().parents[1]
-if str(REPO) not in sys.path:
-    sys.path.insert(0, str(REPO))
-
-
-class _ToolResult(str):
-    @classmethod
-    def error(cls, content: str) -> "_ToolResult":
-        return cls(content)
-
-
-_base = types.ModuleType("nanobot.agent.tools.base")
-_base.ToolResult = _ToolResult
-for _name in ("nanobot.agent", "nanobot.agent.tools"):
-    _module = types.ModuleType(_name)
-    _module.__path__ = [str(REPO / Path(*_name.split(".")))]
-    sys.modules.setdefault(_name, _module)
-sys.modules["nanobot.agent.tools.base"] = _base
-
-from nanobot.games.ffxiv import knowledge_assets as assets  # noqa: E402
-from nanobot.games.ffxiv.knowledge import KnowledgeService  # noqa: E402
+from nanobot.games.ffxiv import knowledge_assets as assets
+from nanobot.games.ffxiv.knowledge import KnowledgeService
 
 
 def _service(database: Path, mode: str) -> KnowledgeService:

@@ -2,112 +2,31 @@
 
 These exercise the service layer directly (the layer that owns the clock), which
 is the same convention the other FF14 game services use.
-
-The rotation logic deliberately sits below the pydantic-backed tool layer, so it
-is loaded here through a small import shim: only ``base.ToolResult`` and the
-bounded-HTTP client type are stood in for, and ``pvp.py`` / ``pvp_rules.py`` are
-executed from their real source files.
 """
 
 from __future__ import annotations
 
 import asyncio
-import dataclasses
 import json
-import sys
-import types
 import unittest
 from datetime import UTC, datetime, timedelta
 from itertools import pairwise
 from pathlib import Path
-
 from zoneinfo import ZoneInfo
 
-def _repo_root() -> Path:
-    """Locate the checkout that contains this test, regardless of nesting."""
-    for candidate in (Path(__file__).resolve().parent, *Path(__file__).resolve().parents):
-        if (candidate / "nanobot" / "games" / "ffxiv" / "pvp.py").is_file():
-            return candidate
-    raise RuntimeError("找不到包含 nanobot/games/ffxiv/pvp.py 的仓库根目录")
+from nanobot.games.ffxiv import pvp_rules as rotation
+from nanobot.games.ffxiv.http import FetchError, FetchResponse
+from nanobot.games.ffxiv.pvp import PVPService
 
-
-DEV = _repo_root()
-SNAPSHOT = DEV / "nanobot" / "games" / "ffxiv" / "data" / "pvp-rules.json"
-_FFXIV = DEV / "nanobot" / "games" / "ffxiv"
-_MODULE_FILES = {
-    "types": _FFXIV / "types.py",
-    "result": _FFXIV / "result.py",
-    "pvp_rules": _FFXIV / "pvp_rules.py",
-    "pvp": _FFXIV / "pvp.py",
-}
-
-# --- Minimal package wiring so the module can be imported without pydantic ---
-_nanobot = types.ModuleType("nanobot")
-_nanobot.__path__ = []
-sys.modules.setdefault("nanobot", _nanobot)
-_pkg = types.ModuleType("nanobot.games.ffxiv")
-_pkg.__path__ = [str(DEV)]
-sys.modules.setdefault("nanobot.games", types.ModuleType("nanobot.games"))
-sys.modules.setdefault("nanobot.games.ffxiv", _pkg)
-
-_base = types.ModuleType("nanobot.agent.tools.base")
-
-
-class _ToolResult(str):
-    @classmethod
-    def error(cls, content: str) -> "_ToolResult":
-        return cls(content)
-
-
-_base.ToolResult = _ToolResult
-sys.modules.setdefault("nanobot.agent", types.ModuleType("nanobot.agent"))
-sys.modules.setdefault("nanobot.agent.tools", types.ModuleType("nanobot.agent.tools"))
-sys.modules.setdefault("nanobot.agent.tools.base", _base)
-
-# httpx and the SSRF guard are not needed to exercise the rotation logic.
-_http_mod = types.ModuleType("nanobot.games.ffxiv.http")
-
-
-class FetchError(RuntimeError):
-    """Stand-in for the bounded-fetch failure raised by the real client."""
-
-
-class SafeHttpClient:
-    def __init__(self, **kwargs) -> None:
-        self.kwargs = kwargs
-
-
-@dataclasses.dataclass(frozen=True)
-class FetchResponse:
-    url: str
-    status_code: int
-    headers: dict
-    body: bytes
-
-
-_http_mod.FetchError = FetchError
-_http_mod.SafeHttpClient = SafeHttpClient
-_http_mod.FetchResponse = FetchResponse
-sys.modules["nanobot.games.ffxiv.http"] = _http_mod
-
-for mod, path in _MODULE_FILES.items():
-    spec_name = f"nanobot.games.ffxiv.{mod}"
-    module = types.ModuleType(spec_name)
-    module.__file__ = str(path)
-    module.__package__ = "nanobot.games.ffxiv"
-    sys.modules[spec_name] = module
-    exec(compile(path.read_bytes(), str(path), "exec"), module.__dict__)
-
-from nanobot.games.ffxiv import pvp_rules as R  # noqa: E402
-from nanobot.games.ffxiv.pvp import PVPService  # noqa: E402
-
+REPO = Path(__file__).resolve().parents[1]
+SNAPSHOT = REPO / "nanobot" / "games" / "ffxiv" / "data" / "pvp-rules.json"
 SNAPSHOT_BYTES = SNAPSHOT.read_bytes()
 SHANGHAI = ZoneInfo("Asia/Shanghai")
 CC_ZONE = ZoneInfo("UTC")
 
 
-def bundled() -> R.RotationRulesBundle:
-    return R.parse_rotation_rules(SNAPSHOT_BYTES, origin=str(SNAPSHOT))
+def bundled() -> rotation.RotationRulesBundle:
+    return rotation.parse_rotation_rules(SNAPSHOT_BYTES, origin=str(SNAPSHOT))
 
 
 class FakeHttp:
@@ -154,28 +73,28 @@ class SnapshotTest(unittest.TestCase):
     def test_snapshot_parses_and_digest_is_self_consistent(self):
         rules = bundled()
         self.assertEqual(rules.schema_version, 1)
-        self.assertEqual(rules.rotation_digest, R.rotation_digest(rules.modes))
+        self.assertEqual(rules.rotation_digest, rotation.rotation_digest(rules.modes))
         self.assertEqual(rules.verified_at, "2026-09-15")
 
     def test_tampered_snapshot_is_rejected(self):
         payload = json.loads(SNAPSHOT_BYTES.decode("utf-8"))
         payload["rotation"]["frontline"]["order"] = ["seize", "secure"]
-        with self.assertRaises(R.RotationRulesError) as caught:
-            R.parse_rotation_rules(json.dumps(payload).encode(), origin="memory")
+        with self.assertRaises(rotation.RotationRulesError) as caught:
+            rotation.parse_rotation_rules(json.dumps(payload).encode(), origin="memory")
         self.assertEqual(caught.exception.code, "pvp_rules_digest_mismatch")
 
     def test_unsupported_schema_version_is_rejected(self):
         payload = json.loads(SNAPSHOT_BYTES.decode("utf-8"))
         payload["schemaVersion"] = 99
-        with self.assertRaises(R.RotationRulesError) as caught:
-            R.parse_rotation_rules(json.dumps(payload).encode(), origin="memory")
+        with self.assertRaises(rotation.RotationRulesError) as caught:
+            rotation.parse_rotation_rules(json.dumps(payload).encode(), origin="memory")
         self.assertEqual(caught.exception.code, "pvp_rules_schema_unsupported")
 
     def test_missing_map_name_is_rejected(self):
         payload = json.loads(SNAPSHOT_BYTES.decode("utf-8"))
         del payload["maps"]["seize"]
-        with self.assertRaises(R.RotationRulesError) as caught:
-            R.parse_rotation_rules(json.dumps(payload).encode(), origin="memory")
+        with self.assertRaises(rotation.RotationRulesError) as caught:
+            rotation.parse_rotation_rules(json.dumps(payload).encode(), origin="memory")
         self.assertEqual(caught.exception.code, "pvp_rules_invalid")
 
     def test_digest_ignores_display_metadata(self):
@@ -185,8 +104,8 @@ class SnapshotTest(unittest.TestCase):
         other["maps"]["seize"]["name"] = "renamed"
         other["verifiedAt"] = "2027-01-01"
         self.assertEqual(
-            R.rotation_digest(rules.modes),
-            R.rotation_digest(R.parse_rotation_rules(
+            rotation.rotation_digest(rules.modes),
+            rotation.rotation_digest(rotation.parse_rotation_rules(
                 json.dumps(other).encode(), origin="memory").modes),
         )
 
@@ -283,9 +202,9 @@ class RemoteRuleTest(unittest.TestCase):
     def test_drifted_upstream_refuses_to_guess(self):
         payload = json.loads(SNAPSHOT_BYTES.decode("utf-8"))
         payload["rotation"]["frontline"]["order"] = ["seize", "secure", "naadam"]
-        payload["rotationDigest"] = R.rotation_digest(
+        payload["rotationDigest"] = rotation.rotation_digest(
             {
-                "frontline": R.RotationModeRules(
+                "frontline": rotation.RotationModeRules(
                     reference=datetime(2026, 4, 27, 15, tzinfo=UTC),
                     interval=timedelta(days=1),
                     order=("seize", "secure", "naadam"),
@@ -324,12 +243,14 @@ class RemoteRuleTest(unittest.TestCase):
 
 class NoBuildTimeExpiryTest(unittest.TestCase):
     def test_service_source_has_no_expiry_gate(self):
-        source = _MODULE_FILES["pvp"].read_text(encoding="utf-8")
+        source = (REPO / "nanobot" / "games" / "ffxiv" / "pvp.py").read_text(
+            encoding="utf-8"
+        )
         self.assertNotIn("REVIEW_AFTER", source)
         self.assertNotIn("reviewAfter", source)
 
     def test_tool_source_has_no_expiry_gate(self):
-        source = (DEV / "nanobot" / "agent" / "tools" / "ffxiv_pvp.py").read_text(
+        source = (REPO / "nanobot" / "agent" / "tools" / "ffxiv_pvp.py").read_text(
             encoding="utf-8"
         )
         self.assertNotIn("REVIEW_AFTER", source)
