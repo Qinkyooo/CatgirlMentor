@@ -289,4 +289,6 @@ def resolve_guide_database(
         / "knowledge"
         / BUNDLED_DATABASE_NAME
     ).resolve(strict=False)
-    return ResolvedGuideDatabase(path, "legacy")
+    if path.is_file():
+        return ResolvedGuideDatabase(path, "legacy")
+    return ResolvedGuideDatabase(bundled_database_path(), "bundled")

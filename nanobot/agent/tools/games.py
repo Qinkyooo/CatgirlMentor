@@ -8,7 +8,9 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, ClassVar, Protocol, cast
 
-from pydantic import Field
+from urllib.parse import urlsplit
+
+from pydantic import Field, field_validator
 
 from nanobot.agent.tools.base import Tool
 from nanobot.agent.tools.schema import (
@@ -23,6 +25,10 @@ from nanobot.games.ffxiv.knowledge_assets import (
     GuideDatabaseMode,
     resolve_guide_database,
 )
+from nanobot.games.ffxiv.pvp_rules import (
+    RotationRulesBundle,
+    resolve_rotation_rules,
+)
 
 if TYPE_CHECKING:
     from nanobot.agent.tools.context import ToolContext
@@ -35,7 +41,20 @@ class GamesToolConfig(Base):
     data_dir: str = "~/.nanobot/games"
     update_timeout_seconds: float = Field(default=5.0, gt=0, le=60)
     guide_database: str | None = None
+    pvp_rules: str | None = None
+    pvp_rules_url: str | None = None
     wiki_cache_mb: int = Field(default=1024, ge=16, le=16_384)
+
+    @field_validator("pvp_rules_url")
+    @classmethod
+    def _validate_pvp_rules_url(cls, value: str | None) -> str | None:
+        """Reject anything that could not be a plain HTTPS snapshot URL."""
+        if value is None or not value.strip():
+            return None
+        parsed = urlsplit(value)
+        if parsed.scheme != "https" or not parsed.hostname:
+            raise ValueError("pvpRulesUrl 必须是带主机名的 https URL")
+        return value.strip()
 
 
 class _GameService(Protocol):
@@ -49,6 +68,8 @@ class _ServiceSettings:
     guide_database: Path
     wiki_cache_mb: int
     guide_database_mode: GuideDatabaseMode = "legacy"
+    pvp_rules: RotationRulesBundle | None = None
+    pvp_rules_url: str | None = None
     timezone_name: str = "UTC"
 
 
@@ -58,6 +79,7 @@ class _GameServices:
     knowledge: _GameService
     housing: _GameService
     market: _GameService
+    pvp: _GameService
 
 
 def _build_services(config: _ServiceSettings) -> _GameServices:
@@ -65,8 +87,9 @@ def _build_services(config: _ServiceSettings) -> _GameServices:
     from nanobot.games.ffxiv.fishing import FishingService
     from nanobot.games.ffxiv.fishing_snapshot import FishingSnapshotManager
     from nanobot.games.ffxiv.housing import HousingMetadataSource, HousingService
-    from nanobot.games.ffxiv.knowledge import DEFAULT_SOURCE_ROOT, KnowledgeService
+    from nanobot.games.ffxiv.knowledge import KnowledgeService
     from nanobot.games.ffxiv.market import MarketService
+    from nanobot.games.ffxiv.pvp import PVPService
     from nanobot.games.ffxiv.tool_directory import WaterCrystalDirectory
     from nanobot.games.ffxiv.wiki import FFCafeClient, WikiLookup
     from nanobot.games.ffxiv.wiki_cache import WikiCache
@@ -122,7 +145,6 @@ def _build_services(config: _ServiceSettings) -> _GameServices:
             clock=lambda: datetime.now(timezone.utc),
         ),
         knowledge=KnowledgeService(
-            source_root=DEFAULT_SOURCE_ROOT,
             guide_database=config.guide_database,
             guide_database_mode=config.guide_database_mode,
             ffcafe=ffcafe,
@@ -138,6 +160,12 @@ def _build_services(config: _ServiceSettings) -> _GameServices:
             clock=lambda: datetime.now(timezone.utc),
         ),
         market=MarketService(http=http_client, items=ffcafe),
+        pvp=PVPService(
+            rules=config.pvp_rules or resolve_rotation_rules(None).bundle,
+            http=http_client,
+            rules_url=config.pvp_rules_url,
+            clock=lambda: datetime.now(timezone.utc),
+        ),
     )
 
 
@@ -176,12 +204,15 @@ class _FFXIVTool(Tool):
             config.guide_database,
             data_root=data_root,
         )
+        rotation_rules = resolve_rotation_rules(config.pvp_rules)
         return cls(
             settings=_ServiceSettings(
                 data_root=data_root,
                 update_timeout_seconds=config.update_timeout_seconds,
                 guide_database=guide_database.path,
                 guide_database_mode=guide_database.mode,
+                pvp_rules=rotation_rules.bundle,
+                pvp_rules_url=config.pvp_rules_url,
                 wiki_cache_mb=config.wiki_cache_mb,
                 timezone_name=ctx.timezone,
             )

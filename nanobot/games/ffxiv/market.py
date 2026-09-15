@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import math
+import re
 import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -17,7 +18,7 @@ from .housing import SERVER_IDS
 from .http import FetchError, FetchResponse
 from .result import error_result, success_result
 from .types import Evidence, Freshness
-from .wiki import PINNED_VERSION, ItemCandidate, WikiSourceError
+from .wiki import PINNED_VERSION, ItemCandidate, WikiSourceError, item_name_similarity
 
 UNIVERSALIS_HOSTS = frozenset({"universalis.app"})
 UNIVERSALIS_API = "https://universalis.app/api/v2"
@@ -298,11 +299,33 @@ class MarketService:
             for candidate in candidates
             if _normalize(candidate.name_zh) == normalized
         )
+        if not exact and len(normalized) >= 4 and candidates:
+            ranked = sorted(
+                candidates,
+                key=lambda candidate: item_name_similarity(normalized, candidate.name_zh),
+                reverse=True,
+            )
+            best = item_name_similarity(normalized, ranked[0].name_zh)
+            runner_up = (
+                item_name_similarity(normalized, ranked[1].name_zh) if len(ranked) > 1 else 0
+            )
+            # A shortened name must preserve both ends and every input character.
+            omitted_words = [
+                candidate for candidate in ranked
+                if item_name_similarity(normalized, candidate.name_zh) >= 0.8
+                and re.fullmatch(".*".join(map(re.escape, normalized)),
+                                 _normalize(candidate.name_zh))
+            ]
+            if best >= 0.8 and (
+                best - runner_up >= 0.15
+                or omitted_words == [ranked[0]]
+            ):
+                exact = (ranked[0],)
         if len(exact) != 1:
             if candidates:
                 return error_result(
                     "ambiguous_item",
-                    "物品名称不唯一，请指定完整中文名。",
+                    "未能唯一确认物品，找到以下相似名称，请选择完整中文名后重试。",
                     suggestions=tuple(
                         f"{candidate.name_zh}（ID {candidate.item_id}）"
                         for candidate in candidates[:10]
@@ -415,6 +438,11 @@ class MarketService:
             return error_result("market_unavailable", f"市场价格当前不可用：{exc}")
 
         statistics_at = metrics.get("statisticsAt")
+        if _normalize(item_name) != _normalize(item.name_zh):
+            warnings += (
+                f'已将“{item_name}”模糊匹配为“{item.name_zh}”（ID {item.row_id}），'
+                "以下价格属于该完整名称的物品；请在回复中说明匹配名称。",
+            )
         return success_result(
             kind="market_price",
             data={

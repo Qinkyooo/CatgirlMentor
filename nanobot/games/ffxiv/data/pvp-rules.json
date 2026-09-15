@@ -1,0 +1,32 @@
+{
+  "schemaVersion": 1,
+  "sourceUrl": "https://raw.githubusercontent.com/ffxiv-wakeng/pvp-calendar/master/src/lib/rotation.ts",
+  "verifiedAt": "2026-09-15",
+  "rotationDigest": "ce5b31486e53b45ee1cdf8db94400b606b77337056a16243ed5b8c3658c40300",
+  "rotation": {
+    "frontline": {
+      "reference": "2026-04-27T15:00:00+00:00",
+      "interval": "P1D",
+      "order": ["seize", "secure", "naadam", "triumph", "seize", "shatter", "naadam", "triumph"]
+    },
+    "cc": {
+      "reference": "2026-04-28T13:00:00+00:00",
+      "interval": "PT1H",
+      "order": ["palaistra", "volcanic", "bayside", "cloudnine", "castletown", "harmonias", "redsands"]
+    }
+  },
+  "maps": {
+    "seize": {"name": "尘封秘岩（争夺战）"},
+    "secure": {"name": "周边遗迹群（阵地战）"},
+    "naadam": {"name": "昂萨哈凯尔（竞争战）"},
+    "triumph": {"name": "沃刻其特（演习战）"},
+    "shatter": {"name": "荣誉野（碎冰战）"},
+    "palaistra": {"name": "角力学校"},
+    "volcanic": {"name": "火山之心"},
+    "bayside": {"name": "海岸鸟群斗场"},
+    "cloudnine": {"name": "九霄云上"},
+    "castletown": {"name": "机关大殿"},
+    "harmonias": {"name": "Archeia Harmonias"},
+    "redsands": {"name": "赤土红沙"}
+  }
+}

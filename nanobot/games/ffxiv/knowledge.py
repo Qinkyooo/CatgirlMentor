@@ -13,6 +13,7 @@ from urllib.parse import urlsplit
 from .knowledge_assets import (
     GuideDatabaseMode,
     KnowledgeDatabaseError,
+    bundled_database_path,
     validate_bundled_database,
     validate_custom_database,
 )
@@ -22,7 +23,6 @@ from .tool_directory import DirectoryLookupResult
 from .types import Evidence, Freshness
 from .wiki import GameFact, ItemCandidate, WikiLookupResult, WikiSourceError
 
-DEFAULT_SOURCE_ROOT = Path(r"D:\gamebot\知识库素材--中文")
 _ITEM_SUFFIX = re.compile(
     r"(?:是什[么麼]|有什么用|用途|(?:怎么|如何|在哪(?:里|儿))?(?:获得|获取|取得|入手)(?:方式|方法)?)?[?？。]*$"
 )
@@ -121,7 +121,7 @@ class KnowledgeService:
     def __init__(
         self,
         *,
-        source_root: Path,
+        source_root: Path | None = None,
         guide_database: Path,
         ffcafe: _FFCafe,
         wiki: _Wiki,
@@ -130,7 +130,9 @@ class KnowledgeService:
         wiki_cache_mb: int = 0,
         guide_database_mode: GuideDatabaseMode = "legacy",
     ) -> None:
-        self.source_root = Path(source_root).expanduser().resolve(strict=False)
+        self.source_root = (
+            Path(source_root).expanduser().resolve(strict=False) if source_root else None
+        )
         self.guide_database = Path(guide_database).expanduser().resolve(strict=False)
         self.wiki_cache_mb = wiki_cache_mb
         self.guide_database_mode = guide_database_mode
@@ -161,14 +163,14 @@ class KnowledgeService:
         if self.guide_database.is_file():
             return None
         return error_result(
-            "knowledge_build_required",
+            "knowledge_database_missing",
             (
-                f"中文知识库尚未构建。素材目录: {self.source_root}; "
-                f"目标数据库: {self.guide_database}"
+                f"中文知识库不存在: {self.guide_database}。"
+                f"解压包内置知识库应位于: {bundled_database_path()}"
             ),
             suggestions=(
-                "运行 python -m nanobot.games.ffxiv.knowledge_build "
-                f"--source \"{self.source_root}\" --database \"{self.guide_database}\"",
+                '将 tools.games.guideDatabase 设置为 "bundled" 后重启，使用解压包内置知识库',
+                "若内置库缺失，重新获取完整解压包，确保 guide.sqlite3 与 guide.manifest.json 配套",
             ),
         )
 

@@ -8,6 +8,7 @@ import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from difflib import SequenceMatcher
 from html.parser import HTMLParser
 from typing import Literal, Protocol, cast
 from urllib.parse import quote, urlencode
@@ -49,6 +50,12 @@ class ItemCandidate:
     item_id: int
     name_zh: str
     item_level: int | None = None
+
+
+def item_name_similarity(query: str, name: str) -> float:
+    left = "".join(unicodedata.normalize("NFKC", query).split())
+    right = "".join(unicodedata.normalize("NFKC", name).split())
+    return SequenceMatcher(None, left, right, autojunk=False).ratio()
 
 
 @dataclass(frozen=True, slots=True)
@@ -221,6 +228,16 @@ class FFCafeClient:
             }
         )
         payload = await self._json(f"{FFCAFE_API}/search?{query}")
+        fuzzy = not _list(payload.get("results"))
+        if fuzzy and len(name) >= 2:
+            # Bounded recall for omitted words and small typos; exact lookup stays first.
+            terms = tuple(dict.fromkeys(name[i:i + 2] for i in range(len(name) - 1)))[:24]
+            clauses = [f'Name~{json.dumps(term, ensure_ascii=False)}' for term in terms]
+            query = urlencode({
+                "sheets": "Item", "fields": "Name,LevelItem",
+                "query": " ".join(clauses), "language": "chs", "limit": "50",
+            })
+            payload = await self._json(f"{FFCAFE_API}/search?{query}")
         candidates: list[ItemCandidate] = []
         for raw in _list(payload.get("results")):
             row = _mapping(raw)
@@ -237,6 +254,13 @@ class FFCafeClient:
                     else None
                 )
                 candidates.append(ItemCandidate(item_id, item_name, item_level))
+        if fuzzy:
+            candidates = sorted(
+                (candidate for candidate in candidates
+                 if item_name_similarity(name, candidate.name_zh) >= 0.6),
+                key=lambda candidate: item_name_similarity(name, candidate.name_zh),
+                reverse=True,
+            )[:10]
         return tuple(candidates)
 
     async def game_fact(self, item_id: int) -> GameFact:
