@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CatgirlMentor</title><link rel="icon" href="/desktop.ico"><link rel="stylesheet" href="/app.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header><a class="brand" href="#overview"><img class="brand-icon" src="/desktop.ico" width="40" height="40" alt="">CatgirlMentor</a><span class="local-label"><i></i> 本地工作台</span></header>
+  <div class="shell">
+    <nav aria-label="主导航"><button data-view="overview" aria-current="page">概览</button><button data-view="model">模型配置</button><button data-view="logs">运行日志</button><button data-view="settings">应用设置</button></nav>
+    <main>
+      <div id="notice" role="status" hidden></div>
+      <section id="overview" class="view">
+        <div class="page-heading"><div><p class="eyebrow">YOUR EVERYDAY COMPANION</p><h1>一切，从这里开始。</h1><p>配置好你的助手，把其余的交给后台。</p></div><span id="version" class="version"></span></div>
+        <article class="status-card"><div class="status-top"><span class="caption">后台状态</span><span id="state" class="badge">正在检查</span></div><h2 id="state-title">正在连接本地管理服务</h2><p id="state-description">只需片刻。</p><p id="runtime-error" class="error" hidden></p><div class="actions"><button id="primary" class="primary" disabled>正在检查…</button><button id="restart" data-action="restart" hidden>重启后台</button><button id="stop" data-action="stop" hidden>停止后台</button></div></article>
+        <div class="quick-links"><button data-view="model"><strong>模型连接</strong><span id="model-summary">设置你的模型与密钥 →</span></button><button data-view="logs"><strong>运行日志</strong><span>查看后台动态与错误 →</span></button></div>
+        <p class="footnote">关闭浏览器后，助手仍会在后台运行。可从系统托盘重新打开。</p>
+      </section>
+      <section id="model" class="view" hidden>
+        <div class="page-heading"><div><p class="eyebrow">CONNECTION</p><h1>连接你的模型</h1><p>填入服务商提供的模型名称与 API 密钥。</p></div></div>
+        <div id="existing-choice" class="callout" hidden><p>以前用过 nanobot？检测到原来的配置，可以继续使用其中的模型设置和会话。</p><button id="use-existing">使用以前的 nanobot 数据</button></div>
+        <form id="model-form" class="panel form-panel">
+          <label>模型提供商<select id="provider" name="provider" required><option value="deepseek">DeepSeek</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic</option><option value="openrouter">OpenRouter</option><option value="custom">自定义兼容接口</option></select></label>
+          <label>API 密钥<input id="api-key" name="apiKey" type="password" placeholder="粘贴 API 密钥" autocomplete="new-password"><small id="key-hint">密钥只保存在你的电脑上。</small></label>
+          <details id="advanced"><summary>自定义 API 地址</summary><label>API 地址<input id="api-base" name="apiBase" type="url" placeholder="https://api.example.com/v1" maxlength="2048" autocomplete="off"><small>通常可留空。自定义兼容接口需要填写。</small></label></details>
+          <div class="model-field"><label for="model-name">模型名称</label><div class="model-picker"><input id="model-name" name="model" placeholder="获取后选择，或手动输入" required maxlength="200" autocomplete="off" aria-describedby="models-result"><button type="button" id="fetch-models">获取模型</button></div><select id="model-options" aria-label="可选模型" hidden></select><p id="models-result" role="status">填写连接信息后，点击获取模型。无需先保存配置。</p></div>
+          <p id="preset-hint" class="callout" hidden>当前配置使用模型预设。保存此表单将切换为这里填写的模型；其他预设仍会保留。</p>
+          <div class="actions"><button type="submit" class="primary">保存配置</button><button type="button" id="test-connection">保存并测试连接</button></div><p id="model-result" role="status"></p>
+        </form><p class="footnote">测试会发送一条简短请求。聊天渠道与 FF14 功能可在聊天界面的设置中配置。</p>
+      </section>
+      <section id="logs" class="view" hidden>
+        <div class="page-heading"><div><p class="eyebrow">ACTIVITY</p><h1>运行日志</h1><p>最近 300 行。凭据会在显示前隐藏。</p></div></div>
+        <div class="log-toolbar"><input id="log-search" aria-label="搜索日志" placeholder="搜索日志…"><select id="log-level" aria-label="日志级别"><option value="">所有级别</option><option>ERROR</option><option>WARNING</option><option>INFO</option></select><button id="follow">暂停跟随</button><button id="copy-logs">复制</button></div><pre id="log-output" tabindex="0" aria-label="后台日志">暂无后台日志。</pre>
+      </section>
+      <section id="settings" class="view" hidden>
+        <div class="page-heading"><div><p class="eyebrow">PREFERENCES</p><h1>简单一点，就很好。</h1><p>管理启动方式和本地数据。</p></div></div>
+        <article class="panel"><h2>启动与后台</h2><label class="switch-row"><span><strong>登录 Windows 后自动启动</strong><small>静默运行，不弹出浏览器窗口。</small></span><input type="checkbox" id="startup" role="switch"></label><p id="startup-result" role="status"></p></article>
+        <article class="panel"><h2>数据与版本</h2><p id="data-source-description"></p><dl><dt>应用版本</dt><dd id="settings-version">—</dd><dt>启动来源</dt><dd id="source">—</dd><dt>配置文件</dt><dd id="config-path" class="mono">—</dd><dt>管理地址</dt><dd id="manager-url" class="mono">—</dd><dt>聊天地址</dt><dd id="chat-url" class="mono">—</dd></dl><div class="actions"><button data-action="open-data">打开数据目录</button><button id="copy-path">复制配置路径</button></div><details id="data-source-options" hidden><summary>更换数据来源</summary><p class="footnote">本应用与以前的 nanobot 可以使用各自的模型配置和会话。切换只改变使用哪一套数据，不会复制或删除原有数据；请先停止后台。</p><button id="use-independent" hidden>使用本应用的数据</button><button id="settings-use-existing" hidden>使用以前的 nanobot 数据</button></details></article>
+        <div class="maintenance"><button id="reset-config" class="text-button">备份并重置配置</button><button id="exit" class="text-button">退出应用</button></div><p class="footnote">退出应用会停止由本应用启动的后台。外部 CLI 启动的实例不会被停止。</p>
+      </section>
+    </main>
+  </div>
+</body></html>

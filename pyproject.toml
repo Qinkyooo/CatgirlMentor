@@ -63,6 +63,12 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+desktop = [
+    "aiohttp>=3.9.0,<4.0.0",
+    "pystray==0.19.5",
+    "qq-botpy>=1.2.0,<2.0.0",
+    "Pillow>=11.0,<13.0",
+]
 api = [
     "aiohttp>=3.9.0,<4.0.0",
 ]
@@ -134,6 +140,8 @@ include = [
     "nanobot/skills/**/*.sh",
     "nanobot/channels/*/webui/**/*",
     "nanobot/web/dist/**/*",
+    "nanobot/desktop/static/**/*",
+    "nanobot/games/ffxiv/data/**/*",
 ]
 # nanobot/web/dist/ is produced by `cd webui && bun run build` and is
 # git-ignored. List it as an artifact so hatch ships it in both wheel and

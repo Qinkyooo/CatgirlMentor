@@ -267,9 +267,13 @@ class GatewayRuntime(ManagedProcessRuntime[ProcessStartOptions]):
             self._write_state(state)
         return RuntimeResult(True, result.message, self.status())
 
-    def stop(self, *, timeout_s: int = 20) -> RuntimeResult:
+    def stop(self, *, timeout_s: int = 20, expected_identity: tuple[int | None, str | None] | None = None) -> RuntimeResult:
         """Stop the gateway recorded by this runtime."""
         with self._transition_lock():
+            if expected_identity is not None:
+                status = self.status()
+                if (status.pid, status.started_at) != expected_identity:
+                    return RuntimeResult(False, "gateway_identity_changed", status)
             result = self._stop(timeout_s=timeout_s)
             with self._lifecycle_lock():
                 if result.ok or result.message in {
@@ -363,7 +367,8 @@ class GatewayRuntime(ManagedProcessRuntime[ProcessStartOptions]):
                 state.update(
                     {
                         "pid": pid,
-                        "started_at": datetime.now(UTC).isoformat(),
+                        # Keep one launch identity across interpreter startup / venv PID handoff.
+                        "started_at": state.get("started_at") if launch_mode == "background" and state.get("started_at") else datetime.now(UTC).isoformat(),
                         "platform": self.platform_name,
                         "port": options.port,
                         "workspace": options.workspace,
@@ -391,11 +396,13 @@ class GatewayRuntime(ManagedProcessRuntime[ProcessStartOptions]):
                 kind="gateway-exit",
             )._finish_shutdown_locked()
 
-    def restart(self, options: ProcessStartOptions, *, timeout_s: int = 20) -> RuntimeResult:
+    def restart(self, options: ProcessStartOptions, *, timeout_s: int = 20, expected_identity: tuple[int | None, str | None] | None = None) -> RuntimeResult:
         """Restart an existing gateway without creating a new persistent instance."""
         with self._transition_lock():
             with self._lifecycle_lock():
                 status = self.status()
+                if expected_identity is not None and (status.pid, status.started_at) != expected_identity:
+                    return RuntimeResult(False, "gateway_identity_changed", status)
                 if not status.running:
                     return RuntimeResult(False, "gateway_not_running", status)
                 if status.launch_mode == "foreground":
