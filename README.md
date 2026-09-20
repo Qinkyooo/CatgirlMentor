@@ -24,8 +24,13 @@
 - 🎭 **Persona 人设系统**：证据驱动地生成角色档案（素材收集 → 预览 → 应用），随时切换人设，也可一键退出恢复默认。注：如更换人设以后QQ等渠道消息仍然是旧人设需要先发送/new 开启新会话
 - 📜 **回答纪律**：所有游戏数据回答不编造数值 / 时间 / 价格；来源默认不展示、按需追溯；玩家上报类数据强制附带免责声明。
 
-## 🚀 快速开始（推荐从源码运行）
-<img width="517" height="423" alt="image" src="https://github.com/user-attachments/assets/4820c967-a329-4bf9-bcab-913e1c4afcab" />
+## 🚀 快速开始  
+### 安装版
+下载catgrilmentor安装版exe文件，双击运行即可
+文件名示例：catgirlmentor-0.3.5-windows-x64-setup.exe
+
+
+### 源码版
 
 **前置**：Python 3.11+node.js
 请先确认是否满足前置条件，如未满足请先看[安装前置](#手动安装)
