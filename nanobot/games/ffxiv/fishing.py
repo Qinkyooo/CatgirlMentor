@@ -544,6 +544,8 @@ class FishingService:
             status = await self._snapshot_manager.refresh(force=action == "fish_info")
         except FishingSnapshotUnavailableError as exc:
             return error_result("source_unavailable", str(exc))
+        except FishCakeFormatError as exc:
+            return error_result("source_format_changed", f"鱼糕数据格式已变化，请更新应用后重试：{exc}")
         if action == "fish_info" and status.state != "fresh":
             return error_result(
                 "current_source_unavailable",

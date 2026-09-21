@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import re
+import time
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
+from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any, Literal, Protocol, TypeAlias, cast
 from urllib.parse import urljoin, urlsplit
@@ -79,14 +81,16 @@ class _HousingHttp(Protocol):
         ...
 
 
-_INDEX_SCRIPT = re.compile(
-    rb'<script[^>]+src=["\'](?P<src>/assets/index-[A-Za-z0-9_-]+\.js)["\']'
-)
-_STAGE_LITERAL = (
-    '["正在出售","现正火热预约中！","抽签结果已公布","即将开始抽签预约！"]'
-)
+class _HousingScripts(HTMLParser):
+    def __init__(self) -> None:
+        super().__init__()
+        self.sources: list[str] = []
 
-
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        values = dict(attrs)
+        source = values.get("src")
+        if tag == "script" and source and values.get("type") == "module":
+            self.sources.append(source)
 def _json_array_at(script: str, start: int) -> object:
     if start < 0 or start >= len(script) or script[start] != "[":
         raise UnsupportedHousingSiteVersionError("description table start was not found")
@@ -124,16 +128,32 @@ def extract_housing_metadata(script: bytes, *, version: str) -> HousingCardMetad
         text = script.decode("utf-8")
     except UnicodeDecodeError as exc:
         raise UnsupportedHousingSiteVersionError("housing bundle is not UTF-8") from exc
-    if _STAGE_LITERAL not in text:
+    stages_found = False
+    tables: list[list[object]] = []
+    # Parse inert JSON arrays, independent of minified names and whitespace.
+    # Keep the reviewed stage order and 5 x 60 plot mapping as invariants.
+    for match in re.finditer(r'\[\s*(?:\[\s*)?"', text):
+        try:
+            candidate = _json_array_at(text, match.start())
+        except UnsupportedHousingSiteVersionError:
+            continue
+        if candidate == list(STAGE_TEXT.values()):
+            stages_found = True
+        if isinstance(candidate, list):
+            rows = cast(list[object], candidate)
+            if len(rows) == len(AREA_NAMES) and all(
+                isinstance(row, list) and len(cast(list[object], row)) == 60
+                and all(isinstance(value, str) for value in cast(list[object], row))
+                for row in rows
+            ):
+                tables.append(rows)
+    if not stages_found:
         raise UnsupportedHousingSiteVersionError(
             "reviewed housing stage wording changed"
         )
-    marker = ",ai=["
-    marker_at = text.find(marker)
-    table = _json_array_at(text, marker_at + len(marker) - 1)
-    if not isinstance(table, list):
-        raise UnsupportedHousingSiteVersionError("housing description table changed")
-    table_rows = cast(list[object], table)
+    if len(tables) != 1:
+        raise UnsupportedHousingSiteVersionError("housing description table missing or ambiguous")
+    table_rows = tables[0]
     if len(table_rows) != len(AREA_NAMES):
         raise UnsupportedHousingSiteVersionError("housing description areas changed")
     descriptions: dict[tuple[int, int], str] = {}
@@ -162,36 +182,45 @@ class HousingMetadataSource:
     def __init__(self, http: _HousingHttp) -> None:
         self._http = http
         self._cached: HousingCardMetadata | None = None
+        self._expires_at = 0.0
 
     async def get(self) -> HousingCardMetadata:
-        if self._cached is not None:
+        if self._cached is not None and time.monotonic() < self._expires_at:
             return self._cached
-        home = await self._http.get_bytes(
-            "https://house.ffxiv.cyou/",
-            allowed_hosts=HOUSING_HOSTS,
-            max_bytes=1_000_000,
-        )
-        match = _INDEX_SCRIPT.search(home.body)
-        if match is None:
-            raise UnsupportedHousingSiteVersionError(
-                "versioned housing index bundle was not found"
+        try:
+            home = await self._http.get_bytes(
+                f"https://{PRIMARY_HOUSING_HOST}/",
+                allowed_hosts=HOUSING_HOSTS,
+                max_bytes=1_000_000,
             )
-        bundle_url = urljoin(home.url, match.group("src").decode("ascii"))
-        parsed = urlsplit(bundle_url)
-        if parsed.hostname not in HOUSING_HOSTS:
-            raise UnsupportedHousingSiteVersionError(
-                "housing bundle left the allowed hosts"
+        except FetchError:
+            home = await self._http.get_bytes(
+                f"https://{FALLBACK_HOUSING_HOST}/",
+                allowed_hosts=HOUSING_HOSTS,
+                max_bytes=1_000_000,
             )
-        bundle = await self._http.get_bytes(
-            bundle_url,
-            allowed_hosts=HOUSING_HOSTS,
-            max_bytes=4_000_000,
-        )
-        metadata = extract_housing_metadata(
-            bundle.body,
-            version=Path(parsed.path).name,
-        )
+        parser = _HousingScripts()
+        parser.feed(home.body.decode("utf-8", errors="replace"))
+        urls = list(dict.fromkeys(urljoin(home.url, src) for src in parser.sources))
+        if not urls or len(urls) > 4:
+            raise UnsupportedHousingSiteVersionError("housing module scripts missing or exceed limit")
+        found: list[HousingCardMetadata] = []
+        for bundle_url in urls:
+            parsed = urlsplit(bundle_url)
+            if parsed.hostname not in HOUSING_HOSTS:
+                continue
+            bundle = await self._http.get_bytes(
+                bundle_url, allowed_hosts=HOUSING_HOSTS, max_bytes=4_000_000,
+            )
+            try:
+                found.append(extract_housing_metadata(bundle.body, version=Path(parsed.path).name))
+            except UnsupportedHousingSiteVersionError:
+                continue
+        if len(found) != 1:
+            raise UnsupportedHousingSiteVersionError("housing card metadata missing or ambiguous")
+        metadata = found[0]
         self._cached = metadata
+        self._expires_at = time.monotonic() + 300
         return metadata
 
 
@@ -545,6 +574,7 @@ class HousingService:
     ) -> None:
         self._http = http
         self._metadata = metadata
+        self._static_metadata = metadata is not None
         self._metadata_source = metadata_source or HousingMetadataSource(http)
         self._timezone_name = timezone_name
         self._clock = clock
@@ -637,7 +667,7 @@ class HousingService:
                 f"房屋网站响应与已审核契约不一致：{exc}",
             )
 
-        if self._metadata is None:
+        if not self._static_metadata:
             try:
                 self._metadata = await self._metadata_source.get()
             except (FetchError, UnsupportedHousingSiteVersionError) as exc:
@@ -646,6 +676,7 @@ class HousingService:
                     f"无法验证房屋网站当前卡片展示契约：{exc}",
                 )
 
+        assert self._metadata is not None  # Injected at construction or loaded above.
         cards = self._render(rows)
         if action == "detail":
             assert area_value is not None
