@@ -59,7 +59,7 @@ def start_tray(controller: DesktopController, loop: asyncio.AbstractEventLoop,
     def stop_enabled(_item: object) -> bool:
         return current["state"] in {"running", "failed"} and current["source"] == "application"
 
-    icon: TrayIcon = pystray.Icon("catgirlmentor", Image.open(Path(__file__).parent / "static" / "tray-32.png"), "CatgirlMentor · 待配置", menu=pystray.Menu(
+    icon: TrayIcon = pystray.Icon("CatgirlMentor", Image.open(Path(__file__).parent / "static" / "tray-32.png"), "CatgirlMentor · 待配置", menu=pystray.Menu(
         pystray.MenuItem("打开管理页", open_page, default=True),
         pystray.MenuItem("打开聊天界面", dispatch("chat"), enabled=chat_enabled),
         pystray.Menu.SEPARATOR,
@@ -68,7 +68,7 @@ def start_tray(controller: DesktopController, loop: asyncio.AbstractEventLoop,
         pystray.Menu.SEPARATOR,
         pystray.MenuItem("退出应用", dispatch("exit")),
     ))
-    thread = threading.Thread(target=icon.run, daemon=True, name="catgirlmentor-tray")
+    thread = threading.Thread(target=icon.run, daemon=True, name="CatgirlMentor-tray")
     thread.start()
 
     async def update() -> None:

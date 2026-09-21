@@ -369,8 +369,8 @@ class MarketService:
             )
         try:
             item = await self._resolve_item(item_name)
-        except (FetchError, MarketPayloadError, WikiSourceError):
-            return error_result("market_unavailable", "物品或市场数据源当前不可用。")
+        except (FetchError, MarketPayloadError, WikiSourceError) as exc:
+            return error_result("market_unavailable", f"物品或市场数据源当前不可用：{exc}。请稍后重试。")
         if not isinstance(item, ItemRef):
             return item
         if not item.marketable:

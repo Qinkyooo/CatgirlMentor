@@ -60,7 +60,7 @@ class DesktopController:
         self._owner_path = self.data_dir / "owned-gateway.json"
         try:
             owner = json.loads(self._owner_path.read_text(encoding="utf-8"))
-            if owner.get("config") == str(self.config_path):
+            if isinstance(owner.get("config"), str) and Path(owner["config"]) == self.config_path:
                 self.owned = (int(owner["pid"]), owner["started_at"])
         except (OSError, ValueError, KeyError, TypeError, AttributeError):
             pass

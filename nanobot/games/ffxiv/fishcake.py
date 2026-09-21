@@ -423,7 +423,7 @@ def _decode_js_string(value: str) -> str:
     return "".join(result)
 
 
-def _extract_json_parse_array(data: bytes, variable: str) -> list[object]:
+def _extract_json_parse_value(data: bytes, variable: str) -> object:
     text = _text(data)
     marker = f",{variable}=JSON.parse("
     start = text.find(marker)
@@ -452,13 +452,29 @@ def _extract_json_parse_array(data: bytes, variable: str) -> list[object]:
         parsed: object = json.loads(decoded)
     except json.JSONDecodeError as exc:
         raise FishCakeFormatError(f"FishCake static table {variable} is invalid JSON") from exc
-    if not isinstance(parsed, list):
-        raise FishCakeFormatError(f"FishCake static table {variable} must be an array")
-    return cast(list[object], parsed)
+    return parsed
 
 
 def _json_record(value: object, label: str) -> Mapping[str, object]:
     return _require_mapping(value, label)
+
+
+def _find_static_table(data: bytes, fields: frozenset[str]) -> list[object]:
+    # Minified variable names change between FishCake builds. Identify the
+    # table by its schema, then let the normal row validators check all values.
+    matches: list[list[object]] = []
+    for variable in re.findall(r",([A-Za-z_$][\w$]*)=JSON\.parse\(", _text(data)):
+        value = _extract_json_parse_value(data, variable)
+        if not isinstance(value, list):
+            continue
+        rows = cast(list[object], value)
+        if rows and isinstance(rows[0], dict) and fields.issubset(cast(dict[object, object], rows[0])):
+            matches.append(rows)
+    if len(matches) != 1:
+        raise FishCakeFormatError(
+            f"FishCake static table {sorted(fields)} is missing or ambiguous"
+        )
+    return matches[0]
 
 
 def _json_int(record: Mapping[str, object], key: str, label: str) -> int:
@@ -486,7 +502,7 @@ def _decode_static_tables(
 ) -> tuple[tuple[Territory, ...], tuple[Weather, ...], tuple[WeatherRate, ...]]:
     weather: list[Weather] = []
     weather_ids: set[int] = set()
-    for index, raw in enumerate(_extract_json_parse_array(data, "z")):
+    for index, raw in enumerate(_find_static_table(data, frozenset({"id", "chs", "iconId"}))):
         record = _json_record(raw, f"weather[{index}]")
         weather_id = _json_int(record, "id", f"weather[{index}]")
         name = record.get("chs")
@@ -497,7 +513,7 @@ def _decode_static_tables(
 
     weather_rates: list[WeatherRate] = []
     rate_ids: set[int] = set()
-    for index, raw in enumerate(_extract_json_parse_array(data, "w")):
+    for index, raw in enumerate(_find_static_table(data, frozenset({"id", "weatherIds", "rates"}))):
         record = _json_record(raw, f"weatherRate[{index}]")
         rate_id = _json_int(record, "id", f"weatherRate[{index}]")
         ids = _json_int_list(record, "weatherIds", f"weatherRate[{index}]")
@@ -513,7 +529,7 @@ def _decode_static_tables(
 
     territories: list[Territory] = []
     territory_ids: set[int] = set()
-    for index, raw in enumerate(_extract_json_parse_array(data, "N")):
+    for index, raw in enumerate(_find_static_table(data, frozenset({"id", "regionPlaceNameId", "zonePlaceNameId", "placeNameId", "weatherRate", "mapId"}))):
         record = _json_record(raw, f"territory[{index}]")
         territory_id = _json_int(record, "id", f"territory[{index}]")
         region_id = _json_int(record, "regionPlaceNameId", f"territory[{index}]")
@@ -1119,9 +1135,65 @@ def discover_primary_guide_url(javascript: str | bytes, base_url: str) -> str:
 class FishCakeDetailSource:
     client: _FetchClient
 
+    async def _guide_url(self, discovery: FishCakeDiscovery, fish_id: int) -> str | None:
+        try:
+            return discover_primary_guide_url(discovery.script.body, discovery.script.url)
+        except FishCakeFormatError:
+            pass
+        # New site builds split guides into lazy chunks. Follow the published
+        # manifest's fish IDs and dates instead of guessing the newest filename.
+        references = re.findall(
+            r'["\']([^"\'\s]{1,200}FishDetailTips-[A-Za-z0-9_-]+\.js)["\']',
+            _text(discovery.script.body),
+        )
+        urls = {
+            _same_origin_url(f"/{ref}" if ref.startswith("assets/") else ref, discovery.script.url)
+            for ref in references
+        }
+        if len(urls) != 1:
+            raise FishCakeFormatError("FishCake guide manifest is missing or ambiguous")
+        manifest_url = urls.pop()
+        response = await self.client.get_bytes(manifest_url, allowed_hosts=FISHCAKE_HOSTS)
+        entries = re.findall(
+            r'\{\s*id\s*:\s*"[^"]+"\s*,\s*lastUpdate\s*:\s*"([^"]+)"\s*,'
+            r'\s*fishItemIds\s*:\s*(\[[\deE+.,\s-]*\])\s*,'
+            r'\s*load\s*:[^{}]{0,160}?import\(\s*"([^"]+)"\s*\)',
+            _text(response.body),
+        )
+        expected_entries = re.findall(r'\{\s*id\s*:\s*"[^"]+"\s*,\s*lastUpdate\s*:', _text(response.body))
+        if not entries or len(entries) != len(expected_entries):
+            raise FishCakeFormatError("FishCake guide manifest format changed")
+        candidates: list[tuple[date, str]] = []
+        for updated, ids, reference in entries:
+            try:
+                fish_ids: object = json.loads(ids)
+            except ValueError as exc:
+                raise FishCakeFormatError("FishCake guide manifest fish IDs are invalid") from exc
+            if not isinstance(fish_ids, list) or not all(
+                isinstance(value, int | float) and not isinstance(value, bool)
+                and 0 <= value <= 2**31 - 1 and value == int(value)
+                for value in cast(list[object], fish_ids)
+            ):
+                raise FishCakeFormatError("FishCake guide manifest fish IDs are invalid")
+            if fish_id not in cast(list[object], fish_ids):
+                continue
+            parsed_date = _guide_date(updated)
+            if parsed_date is None:
+                raise FishCakeFormatError("FishCake guide manifest date is invalid")
+            candidates.append((parsed_date, _same_origin_url(reference, manifest_url)))
+        if not candidates:
+            return None
+        newest = max(updated for updated, _ in candidates)
+        selected = {url for updated, url in candidates if updated == newest}
+        if len(selected) != 1:
+            raise FishCakeFormatError("FishCake newest guide is ambiguous")
+        return selected.pop()
+
     async def guide_for(self, fish_id: int) -> tuple[str, FishCakeGuide | None]:
         discovery = await discover_current_assets(self.client)
-        url = discover_primary_guide_url(discovery.script.body, discovery.script.url)
+        url = await self._guide_url(discovery, fish_id)
+        if url is None:
+            return discovery.source_revision, None
         response = await self.client.get_bytes(url, allowed_hosts=FISHCAKE_HOSTS)
         return discovery.source_revision, parse_primary_guide_asset(
             response.body, fish_id=fish_id

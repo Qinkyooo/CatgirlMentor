@@ -1,8 +1,41 @@
+import json
+import os
 from pathlib import Path
 
 import pytest
 
 from nanobot.desktop.controller import DesktopController
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows case-insensitive paths")
+def test_legacy_data_and_gateway_ownership_survive_brand_casing(tmp_path, monkeypatch):
+    from nanobot.desktop.__main__ import default_data_dir
+
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path))
+    legacy = tmp_path / "catgirlmentor"
+    app = DesktopController(legacy)
+    app.configure({"provider": "deepseek", "model": "deepseek-chat", "apiKey": "legacy-test-key"})
+    app.preferences.write_text('{"use_existing": false}', encoding="utf-8")
+    history = legacy / "workspace" / "sessions" / "chat.jsonl"
+    history.parent.mkdir(parents=True)
+    history.write_text('{"content": "existing history"}\n', encoding="utf-8")
+    (legacy / "owned-gateway.json").write_text(json.dumps({
+        "pid": 123, "started_at": "legacy-start", "config": str(app.config_path).lower(),
+    }), encoding="utf-8")
+    original = {file.relative_to(legacy): file.read_bytes() for file in legacy.rglob("*") if file.is_file()}
+    assert default_data_dir().name == "CatgirlMentor"
+    assert default_data_dir().samefile(legacy)
+    # Exercise the case-only directory rename used by the installer, without
+    # rewriting persisted absolute workspace/config paths.
+    intermediate = tmp_path / "case-rename"
+    legacy.rename(intermediate)
+    intermediate.rename(default_data_dir())
+    upgraded = DesktopController(default_data_dir())
+    assert upgraded.owned == (123, "legacy-start")
+    assert upgraded.settings.load().providers.deepseek.api_key == "legacy-test-key"
+    assert history.read_text(encoding="utf-8") == '{"content": "existing history"}\n'
+    assert {file.relative_to(upgraded.data_dir): file.read_bytes() for file in upgraded.data_dir.rglob("*") if file.is_file()} == original
+    assert next(path for path in tmp_path.iterdir() if path.is_dir()).name == "CatgirlMentor"
 
 
 def test_model_discovery_uses_unsaved_fields_without_writing_config(tmp_path, monkeypatch):

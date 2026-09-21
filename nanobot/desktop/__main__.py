@@ -19,7 +19,7 @@ from nanobot.utils.helpers import _write_text_atomic  # pyright: ignore[reportPr
 
 
 def default_data_dir() -> Path:
-    return Path(os.environ.get("LOCALAPPDATA", str(Path.home() / ".local" / "share"))) / "catgirlmentor"
+    return Path(os.environ.get("LOCALAPPDATA", str(Path.home() / ".local" / "share"))) / "CatgirlMentor"
 
 
 async def run(args: argparse.Namespace) -> None:
@@ -100,7 +100,7 @@ async def run(args: argparse.Namespace) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="catgirlmentor local manager")
+    parser = argparse.ArgumentParser(description="CatgirlMentor local manager")
     parser.add_argument("--data-dir", type=Path, default=default_data_dir())
     parser.add_argument("--port", type=int, default=0)
     parser.add_argument("--silent", action="store_true")

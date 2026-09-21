@@ -1,1 +1,1 @@
-"""catgirlmentor's local Windows management application."""
+"""CatgirlMentor's local Windows management application."""

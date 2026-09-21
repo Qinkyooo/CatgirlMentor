@@ -1,8 +1,21 @@
-# catgirlmentor for Windows
+# CatgirlMentor for Windows
+
+房区、钓鱼与市场工具支持有限的自动恢复：网站压缩变量改名时按字段结构识别数据；
+攻略拆分后跟随当前网站清单中的鱼种和更新时间选择文件；房区脚本地址从页面重新发现，
+展示数据缓存每五分钟重新检查；临时连接超时或断开自动重试一次。
+服务器、价格、抽签阶段和地区对应关系仍严格校验，无法确认的数据会返回明确错误，
+不会猜测或让模型直接修改程序。网站更换接口协议或字段含义仍可能需要更新应用。
+
+打包会自动检查 FF14 服务、服务器表、攻略库和时区能否加载。发布前再运行真实数据源检查
+（只读取公共网站，不调用模型，也不读取用户配置）：
+
+```powershell
+dist/windows-tools-fix/CatgirlMentor/runtime/python.exe scripts/smoke_ffxiv.py --live
+```
 
 ## 快速开始
 
-1. 双击 `catgirlmentor-0.3.5-windows-x64-setup.exe`，安装到当前用户目录，无需管理员权限。
+1. 双击 `CatgirlMentor-0.3.5-Windows-x64-Setup.exe`，安装到当前用户目录，无需管理员权限。
 2. 从桌面或开始菜单打开 CatgirlMentor，在“模型配置”中填写服务商和 API 密钥，点击“获取模型”后从下拉列表选择，也可以手动输入模型名称。
 3. 点击“保存并测试连接”，成功后回到“概览”，点击“启动后台”，再打开聊天界面。
 4. 关闭浏览器不会退出应用。通过系统托盘的书本图标重新打开管理页；需要结束时选择“退出应用”。
@@ -20,7 +33,7 @@ Node.js, Git or a terminal. External model/data services still require connectiv
 
 ## Use
 
-Run `catgirlmentor-<version>-windows-x64-setup.exe`. Install for the current user,
+Run `CatgirlMentor-<version>-Windows-x64-Setup.exe`. Install for the current user,
 then launch the desktop or Start menu shortcut. Fill the model provider, model name
 and API key, save or test the connection, and start the gateway from Overview.
 
@@ -30,12 +43,16 @@ gateway running. “退出应用” stops only the gateway owned by this applica
 An external CLI gateway is shown as external and must be stopped from its original
 entry point. Login startup is opt-in under Application settings; it runs silently.
 
-New data lives in `%LOCALAPPDATA%\catgirlmentor`; choosing the existing configuration
+New data lives in `%LOCALAPPDATA%\CatgirlMentor`; choosing the existing configuration
 uses `%USERPROFILE%\.nanobot\config.json` without copying or replacing it. The settings
 page displays the actual path. Reset first renames the config to a timestamped backup.
-Application files normally live in `%LOCALAPPDATA%\Programs\catgirlmentor`.
+Application files normally live in `%LOCALAPPDATA%\Programs\CatgirlMentor`.
 Uninstall removes application files and its startup entry, while retaining user data.
-Upgrade uses the same installer and first requests a graceful application shutdown.
+Upgrade uses the same AppId and first requests a graceful application shutdown.
+Legacy lowercase `catgirlmentor` default installation/data folders and executable
+are renamed to `CatgirlMentor` casing after shutdown; custom installation folders
+keep their location. Existing configuration, API keys, workspace/history and the
+login-startup selection are retained without rewriting user configuration.
 
 The quick form covers API-key providers. Existing OAuth, named model presets,
 channels, tools and advanced settings continue through the chat WebUI. Saving the
@@ -58,12 +75,12 @@ python scripts/build_desktop.py --output dist/windows-release --python-zip C:/bu
 The requirements file pins dependency versions and hashes. Regenerate it
 only when deliberately updating dependencies. Use a fresh output directory for each
 build. The build verifies required assets, emits per-file SHA256 in
-`catgirlmentor/build-manifest.json`, and creates a current-user installer.
+`CatgirlMentor/build-manifest.json`, and creates a current-user installer.
 
 ## 更新源码后重新打包
 
 打包流程由 `scripts/build_desktop.py` 记录，安装和升级规则由
-`packaging/windows/catgirlmentor.iss` 记录。管理界面、桌面图标和托盘资源在
+`packaging/windows/CatgirlMentor.iss` 记录。管理界面、桌面图标和托盘资源在
 `nanobot/desktop/`；聊天默认中文的设置在 `webui/src/i18n/config.ts` 和
 `webui/index.html`。这些都是源码，不依赖本次聊天记录，也不需要从旧安装包提取。
 
@@ -112,9 +129,15 @@ Tray sizes: 16, 20, 24, 32, 40, 48 pixels; native system menus.
 
 ## Verification
 
+2026-09-21 修复验证：桌面、网站更新兼容与市场匹配共 46 项测试通过；Ruff 与相关模块严格类型检查通过。
+使用新包内运行环境实测红龙、波太郎攻略、鱼窗、天气、市场价格及房区空房、详情、推荐均成功。
+管理器通过本地模型测试服务完成配置、模型列表、连接测试、中文聊天页面、启动、重启、停止与退出检查。
+另用隔离 AppId、注册表键和用户目录验证旧版覆盖升级与卸载：实际目录大小写已统一，
+配置、测试密钥和会话逐字节保留，自启动选择保留，旧运行环境清理完成。
+
 ```powershell
 python -m pytest tests/desktop tests/gateway tests/cli/test_gateway_commands.py tests/cli/test_gateway_runtime.py -q
-python scripts/smoke_desktop.py --python dist/windows-release/catgirlmentor/runtime/python.exe --data-dir C:/test-data/new-smoke-directory
+python scripts/smoke_desktop.py --python dist/windows-release/CatgirlMentor/runtime/python.exe --data-dir C:/test-data/new-smoke-directory
 ```
 
 The smoke script uses a local model stub, no real credentials or paid calls. It

@@ -97,6 +97,7 @@ class SafeHttpClient:
 
         current_url = url
         redirect_count = 0
+        retry_count = 0
         async with httpx.AsyncClient(
             transport=transport,
             timeout=self._timeout,
@@ -148,6 +149,11 @@ class SafeHttpClient:
                 except FetchError:
                     raise
                 except httpx.RequestError as exc:
+                    # GET is idempotent. Retry one transient connection failure;
+                    # retain redirect limits and revalidate the target each time.
+                    if retry_count == 0 and isinstance(exc, httpx.TimeoutException | httpx.NetworkError):
+                        retry_count += 1
+                        continue
                     raise FetchError(
                         f"Request failed for {hostname}: {type(exc).__name__}"
                     ) from exc

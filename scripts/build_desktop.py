@@ -24,7 +24,7 @@ def run(*args: str, cwd: Path = ROOT, env=None) -> None:
 
 def build(output: Path, python_zip: Path, iscc: Path | None, webui_built: bool = False) -> None:
     output = output.resolve()
-    stage = output / "catgirlmentor"
+    stage = output / "CatgirlMentor"
     if stage.exists():
         raise SystemExit("Use a new output directory; existing staging data is never deleted.")
     output.mkdir(parents=True, exist_ok=True)
@@ -59,11 +59,12 @@ def build(output: Path, python_zip: Path, iscc: Path | None, webui_built: bool =
         shutil.copy2(ROOT / name, stage / name)
     shutil.copy2(ROOT / "nanobot" / "desktop" / "static" / "desktop.ico", stage / "desktop.ico")
     csc = Path(os.environ["WINDIR"]) / "Microsoft.NET" / "Framework64" / "v4.0.30319" / "csc.exe"
-    run(str(csc), "/nologo", "/target:winexe", "/platform:x64", "/reference:System.Windows.Forms.dll", f"/win32icon:{stage / 'desktop.ico'}", f"/out:{stage / 'catgirlmentor.exe'}", str(ROOT / "packaging" / "windows" / "Launcher.cs"))
+    run(str(csc), "/nologo", "/target:winexe", "/platform:x64", "/reference:System.Windows.Forms.dll", f"/win32icon:{stage / 'desktop.ico'}", f"/out:{stage / 'CatgirlMentor.exe'}", str(ROOT / "packaging" / "windows" / "Launcher.cs"))
     # Embedded Python is isolated from PYTHONPATH and registered system installs.
     run(str(runtime / "python.exe"), "-c", "import nanobot.desktop.server, pystray; from nanobot.config.schema import Config; Config(); print('desktop runtime OK')", cwd=stage)
+    run(str(runtime / "python.exe"), str(ROOT / "scripts/smoke_ffxiv.py"), cwd=stage)
     installed = runtime / "Lib" / "site-packages" / "nanobot"
-    for required in ("web/dist/index.html", "desktop/static/index.html", "desktop/static/tray-32.png", "games/ffxiv/data/guide.sqlite3"):
+    for required in ("web/dist/index.html", "desktop/static/index.html", "desktop/static/tray-32.png", "games/ffxiv/data/guide.sqlite3", "games/ffxiv/ffxiv-servers.json"):
         if not (installed / required).is_file():
             raise ValueError(f"Missing packaged resource: {required}")
     with python_zip.open("rb") as archive_file:
@@ -77,7 +78,7 @@ def build(output: Path, python_zip: Path, iscc: Path | None, webui_built: bool =
                 manifest["files"][path.relative_to(stage).as_posix()] = hashlib.file_digest(handle, "sha256").hexdigest()
     (stage / "build-manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     if iscc:
-        run(str(iscc), f"/DAppRoot={stage}", f"/DOutputDir={output}", f"/DAppVersion={version}", str(ROOT / "packaging" / "windows" / "catgirlmentor.iss"))
+        run(str(iscc), f"/DAppRoot={stage}", f"/DOutputDir={output}", f"/DAppVersion={version}", str(ROOT / "packaging" / "windows" / "CatgirlMentor.iss"))
     print(f"Distribution ready: {stage}")
 
 
