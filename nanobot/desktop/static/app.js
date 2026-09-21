@@ -45,9 +45,9 @@ function render(data) {
   $('data-source-options').hidden = !data.useExisting && !data.existingAvailable;
   $('data-source-description').textContent = data.useExisting ? '当前使用：以前的 nanobot 数据，继续沿用原来的模型配置和会话。' : '当前使用：本应用的数据，模型配置和会话单独保存在此目录中。';
   $('model-summary').textContent = data.model.model || '设置你的模型与密钥 →';
+  const select = $('provider');
+  for (const provider of data.providers) if (![...select.options].some(option => option.value === provider)) select.add(new Option(provider, provider));
   if (!populated && Object.keys(data.model).length) {
-    const select = $('provider');
-    for (const provider of data.providers) if (![...select.options].some(option => option.value === provider)) select.add(new Option(provider, provider));
     if (data.model.provider && ![...select.options].some(option => option.value === data.model.provider)) select.add(new Option(data.model.provider, data.model.provider));
     select.value = data.model.provider || 'deepseek'; $('model-name').value = data.model.model || '';
     $('api-base').value = data.model.apiBase || ''; $('advanced').open = !!data.model.apiBase;
