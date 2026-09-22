@@ -432,6 +432,33 @@ def _fish_rate(data: _ServiceData, fish: Fish) -> WeatherRate | None:
 def _window_rows(
     data: _ServiceData, fish: Fish, start: datetime, end: datetime
 ) -> tuple[TimeWindow, ...]:
+    if fish.fish_id == 24994 and start < end:
+        # FishCake's 七彩天主 rule: extend green prismfish windows back to
+        # ET 00:00 of the same day, not merely the predecessor's weather start.
+        green = data.repository.resolve_fish(24204).fish
+        if green is None:
+            raise FishingWindowError("missing predecessor fish 24204")
+        matches = fish_windows(
+            green,
+            start=start,
+            end=end + timedelta(seconds=EORZEAN_DAY_SECONDS),
+            weather_rate=_fish_rate(data, green),
+        )
+        windows: list[TimeWindow] = []
+        for match in matches:
+            timestamp = match.window.start.timestamp()
+            left = datetime.fromtimestamp(
+                math.floor(timestamp / EORZEAN_DAY_SECONDS) * EORZEAN_DAY_SECONDS,
+                tz=start.tzinfo,
+            )
+            right = min(match.window.end, end)
+            if right <= max(left, start):
+                continue
+            if windows and left <= windows[-1].end:
+                windows[-1] = TimeWindow(windows[-1].start, max(windows[-1].end, right))
+            else:
+                windows.append(TimeWindow(left, right))
+        return tuple(windows)
     target_matches = fish_windows(
         fish, start=start, end=end, weather_rate=_fish_rate(data, fish)
     )
