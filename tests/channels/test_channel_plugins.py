@@ -2613,6 +2613,27 @@ def test_install_extra_logs_command_and_output(monkeypatch):
     assert any("install ok" in record for record in records)
 
 
+def test_repair_broken_dist_info_removes_incomplete_metadata(tmp_path):
+    from nanobot import optional_features
+
+    site_packages = tmp_path / "site-packages"
+    broken = site_packages / "websockets-16.1.1.dist-info"
+    (broken / "licenses").mkdir(parents=True)
+    (broken / "licenses" / "LICENSE").write_text("license", encoding="utf-8")
+    healthy = site_packages / "idna-3.10.dist-info"
+    healthy.mkdir(parents=True)
+    (healthy / "METADATA").write_text(
+        "Metadata-Version: 2.4\nName: idna\nVersion: 3.10\n",
+        encoding="utf-8",
+    )
+
+    repaired = optional_features.repair_broken_dist_info(site_packages)
+
+    assert repaired == ("websockets-16.1.1.dist-info",)
+    assert not broken.exists()
+    assert healthy.exists()
+
+
 def test_run_install_command_returns_failure_on_timeout(monkeypatch):
     from nanobot import optional_features
 

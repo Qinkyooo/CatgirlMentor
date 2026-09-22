@@ -217,6 +217,43 @@ def missing_pip(proc: subprocess.CompletedProcess[str]) -> bool:
     return "no module named pip" in f"{proc.stdout}\n{proc.stderr}".lower()
 
 
+def _runtime_site_packages() -> Path:
+    executable = Path(sys.executable).resolve()
+    candidates = (
+        executable.parent / "Lib" / "site-packages",
+        executable.parent.parent / "Lib" / "site-packages",
+        Path(sys.prefix) / "Lib" / "site-packages",
+    )
+    return next((path for path in candidates if path.is_dir()), candidates[0])
+
+
+def repair_broken_dist_info(site_packages: Path | None = None) -> tuple[str, ...]:
+    """Remove incomplete distribution records before an optional install.
+
+    A cancelled or interrupted package operation can leave a ``.dist-info``
+    directory with only license files. uv refuses to resolve any subsequent
+    install when such a record is present because it cannot read ``METADATA``.
+    The package payload is left in place; uv will reinstall the affected
+    distribution and recreate its complete record.
+    """
+    root = site_packages or _runtime_site_packages()
+    if not root.is_dir():
+        return ()
+    repaired: list[str] = []
+    for info in sorted(root.glob("*.dist-info")):
+        metadata = info / "METADATA"
+        if metadata.is_file() and metadata.stat().st_size > 0:
+            continue
+        try:
+            shutil.rmtree(info)
+        except OSError as exc:
+            logger.warning("Could not remove incomplete package record {}: {}", info, exc)
+            continue
+        repaired.append(info.name)
+        logger.warning("Removed incomplete package record {}; it will be reinstalled", info)
+    return tuple(repaired)
+
+
 def install_extra(
     extra: str,
     deps: list[str] | None,
@@ -231,6 +268,7 @@ def install_extra(
         logger.info("Optional feature '{}' has no installable dependencies for this platform", extra)
         return InstallResult(True, label, pip_cmd)
 
+    repair_broken_dist_info()
     logger.info("Installing optional feature '{}': {}", extra, command_text(pip_cmd))
     proc = runner(pip_cmd)
     _log_completed_command(f"Optional feature '{extra}' install", proc)
