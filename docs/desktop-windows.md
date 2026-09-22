@@ -1,16 +1,14 @@
 # CatgirlMentor for Windows
 
-房区、钓鱼与市场工具支持有限的自动恢复：网站压缩变量改名时按字段结构识别数据；
-攻略拆分后跟随当前网站清单中的鱼种和更新时间选择文件；房区脚本地址从页面重新发现，
-展示数据缓存每五分钟重新检查；临时连接超时或断开自动重试一次。
-服务器、价格、抽签阶段和地区对应关系仍严格校验，无法确认的数据会返回明确错误，
-不会猜测或让模型直接修改程序。网站更换接口协议或字段含义仍可能需要更新应用。
+游戏工具支持兼容的数据源更新与自动恢复，包括 FFCafe 新版本、鱼糕资源变动、房区脚本更新、
+百科和工具名录刷新，以及已配置的 PvP 远端规则更新。完整范围、缓存周期及失败处理见
+[FF14 数据源更新与自动恢复](ffxiv-source-updates.md)。
 
 打包会自动检查 FF14 服务、服务器表、攻略库和时区能否加载。发布前再运行真实数据源检查
 （只读取公共网站，不调用模型，也不读取用户配置）：
 
 ```powershell
-dist/windows-tools-fix/CatgirlMentor/runtime/python.exe scripts/smoke_ffxiv.py --live
+dist/windows-source-updates/CatgirlMentor/runtime/python.exe scripts/smoke_ffxiv.py --live
 ```
 
 ## 快速开始
