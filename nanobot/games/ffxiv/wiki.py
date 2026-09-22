@@ -18,8 +18,6 @@ from .wiki_cache import RemotePage, WikiCache, WikiCacheHit
 
 FFCAFE_API = "https://xivapi-v2.xivcdn.com/api"
 FFCAFE_HOSTS = frozenset({"xivapi-v2.xivcdn.com"})
-PINNED_SCHEMA = "exdschema@2:rev:83e965d091116f895d5b17573cc5d12909a5f407"
-PINNED_VERSION = "2026071600010000"
 HUIJI_HOSTS = frozenset({"ff14.huijiwiki.com"})
 CONSOLE_HOSTS = frozenset({"ffxiv.consolegameswiki.com"})
 MAX_JSON_BYTES = 2 * 1024 * 1024
@@ -45,11 +43,16 @@ class WikiSourceError(RuntimeError):
     """A remote source response could not be trusted or normalized."""
 
 
+class WikiFormatError(WikiSourceError):
+    """Required source fields are incompatible, rather than temporarily offline."""
+
+
 @dataclass(frozen=True, slots=True)
 class ItemCandidate:
     item_id: int
     name_zh: str
     item_level: int | None = None
+    data_version: str = ""
 
 
 def item_name_similarity(query: str, name: str) -> float:
@@ -110,16 +113,56 @@ def _integer(value: object) -> int | None:
 
 
 def _relation_fields(fields: Mapping[str, object], name: str) -> Mapping[str, object]:
+    if name not in fields:
+        return {}
     relation = _mapping(fields.get(name))
     nested = _mapping(relation.get("fields")) if relation is not None else None
-    return nested or {}
+    if nested is None:
+        raise WikiFormatError(f"FFCafe {name} 关联字段无效")
+    return nested
+
+
+def _field_text(fields: Mapping[str, object], name: str) -> str:
+    value = fields.get(name, "")
+    if not isinstance(value, str):
+        raise WikiFormatError(f"FFCafe {name} 必须是文本")
+    return value.strip()
+
+
+def _field_integer(fields: Mapping[str, object], name: str, *, minimum: int = 0) -> int | None:
+    if name not in fields:
+        return None
+    value = _integer(fields[name])
+    if value is None or value < minimum:
+        raise WikiFormatError(f"FFCafe {name} 必须是大于等于 {minimum} 的整数")
+    return value
 
 
 def _validate_ffcafe(payload: Mapping[str, object]) -> None:
-    if payload.get("schema") != PINNED_SCHEMA:
-        raise WikiSourceError("FFCafe schema 与已验证版本不一致")
-    if str(payload.get("version", "")) != PINNED_VERSION:
-        raise WikiSourceError("FFCafe data version 与已验证版本不一致")
+    # Revisions are provenance, not a compatibility contract. Validate the
+    # fields consumed by each endpoint below, including on familiar revisions.
+    for key in ("schema", "version"):
+        value = payload.get(key)
+        if not isinstance(value, str) or not value.strip() or len(value) > 200:
+            raise WikiFormatError(f"FFCafe 缺少有效的 {key} 标识")
+
+
+def _result_rows(payload: Mapping[str, object], sheet: str) -> tuple[Mapping[str, object], ...]:
+    rows = payload.get("results")
+    if not isinstance(rows, list):
+        raise WikiFormatError(f"FFCafe {sheet} results 必须是数组")
+    result: list[Mapping[str, object]] = []
+    for raw in cast(list[object], rows):
+        row = _mapping(raw)
+        if row is None:
+            raise WikiFormatError(f"FFCafe {sheet} 行必须是对象")
+        row_id = _integer(row.get("row_id"))
+        if row_id is None or row_id <= 0 or row.get("sheet", sheet) != sheet:
+            raise WikiFormatError(f"FFCafe {sheet} 行 ID 或类型无效")
+        if _mapping(row.get("fields")) is None:
+            raise WikiFormatError(f"FFCafe {sheet} 缺少 fields")
+        result.append(row)
+    return tuple(result)
 
 
 def normalize_recipe_methods(
@@ -127,19 +170,22 @@ def normalize_recipe_methods(
 ) -> tuple[AcquisitionMethod, ...]:
     _validate_ffcafe(payload)
     methods: list[AcquisitionMethod] = []
-    for raw_row in _list(payload.get("results")):
+    for raw_row in _result_rows(payload, "Recipe"):
         row = _mapping(raw_row)
         fields = _mapping(row.get("fields")) if row is not None else None
         if row is None or fields is None:
             continue
-        if _integer(fields.get("ItemResult@as(raw)")) != item_id:
+        target = _integer(fields.get("ItemResult@as(raw)"))
+        if target is None or target <= 0:
+            raise WikiFormatError("FFCafe Recipe 缺少有效的物品关联")
+        if target != item_id:
             continue
         row_id = _integer(row.get("row_id"))
-        craft_type = _text(_relation_fields(fields, "CraftType").get("Name"))
-        level = _integer(
-            _relation_fields(fields, "RecipeLevelTable").get("ClassJobLevel")
+        craft_type = _field_text(_relation_fields(fields, "CraftType"), "Name")
+        level = _field_integer(
+            _relation_fields(fields, "RecipeLevelTable"), "ClassJobLevel"
         )
-        amount = _integer(fields.get("AmountResult"))
+        amount = _field_integer(fields, "AmountResult", minimum=1)
         details = [craft_type or "生产职业"]
         if level is not None:
             details.append(f"配方等级 {level}")
@@ -166,16 +212,19 @@ def normalize_gathering_methods(
 ) -> tuple[AcquisitionMethod, ...]:
     _validate_ffcafe(payload)
     methods: list[AcquisitionMethod] = []
-    for raw_row in _list(payload.get("results")):
+    for raw_row in _result_rows(payload, "GatheringItem"):
         row = _mapping(raw_row)
         fields = _mapping(row.get("fields")) if row is not None else None
         if row is None or fields is None:
             continue
-        if _integer(fields.get("Item@as(raw)")) != item_id:
+        target = _integer(fields.get("Item@as(raw)"))
+        if target is None or target <= 0:
+            raise WikiFormatError("FFCafe GatheringItem 缺少有效的物品关联")
+        if target != item_id:
             continue
         row_id = _integer(row.get("row_id"))
-        level = _integer(
-            _relation_fields(fields, "GatheringItemLevel").get("GatheringItemLevel")
+        level = _field_integer(
+            _relation_fields(fields, "GatheringItemLevel"), "GatheringItemLevel"
         )
         summary = "可通过采集获得"
         if level is not None:
@@ -208,11 +257,13 @@ class FFCafeClient:
                 max_bytes=MAX_JSON_BYTES,
             )
             value = json.loads(response.body)
-        except (FetchError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise WikiSourceError(f"FFCafe 请求或 JSON 解析失败: {exc}") from exc
+        except FetchError as exc:
+            raise WikiSourceError(f"FFCafe 请求失败: {exc}") from exc
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise WikiFormatError("FFCafe 响应不是有效的 JSON") from exc
         payload = _mapping(value)
         if payload is None:
-            raise WikiSourceError("FFCafe 响应不是 JSON 对象")
+            raise WikiFormatError("FFCafe 响应不是 JSON 对象")
         _validate_ffcafe(payload)
         return payload
 
@@ -228,7 +279,7 @@ class FFCafeClient:
             }
         )
         payload = await self._json(f"{FFCAFE_API}/search?{query}")
-        fuzzy = not _list(payload.get("results"))
+        fuzzy = not _result_rows(payload, "Item")
         if fuzzy and len(name) >= 2:
             # Bounded recall for omitted words and small typos; exact lookup stays first.
             terms = tuple(dict.fromkeys(name[i:i + 2] for i in range(len(name) - 1)))[:24]
@@ -239,13 +290,15 @@ class FFCafeClient:
             })
             payload = await self._json(f"{FFCAFE_API}/search?{query}")
         candidates: list[ItemCandidate] = []
-        for raw in _list(payload.get("results")):
+        for raw in _result_rows(payload, "Item"):
             row = _mapping(raw)
             fields = _mapping(row.get("fields")) if row is not None else None
             if row is None or fields is None:
                 continue
             item_id = _integer(row.get("row_id"))
             item_name = _text(fields.get("Name"))
+            if not item_name:
+                raise WikiFormatError("FFCafe Item 缺少有效的 Name")
             if item_id is not None and item_name:
                 level_item = _mapping(fields.get("LevelItem"))
                 item_level = (
@@ -253,7 +306,10 @@ class FFCafeClient:
                     if level_item is not None
                     else None
                 )
-                candidates.append(ItemCandidate(item_id, item_name, item_level))
+                if "LevelItem" in fields and (item_level is None or item_level < 0):
+                    raise WikiFormatError("FFCafe Item LevelItem 无效")
+                candidates.append(ItemCandidate(item_id, item_name, item_level,
+                                                _text(payload.get("version"))))
         if fuzzy:
             candidates = sorted(
                 (candidate for candidate in candidates
@@ -271,10 +327,12 @@ class FFCafeClient:
         item_query = urlencode({"fields": item_fields, "language": "chs"})
         item = await self._json(f"{FFCAFE_API}/sheet/Item/{item_id}?{item_query}")
         if _integer(item.get("row_id")) != item_id:
-            raise WikiSourceError("FFCafe Item 行 ID 不匹配")
+            raise WikiFormatError("FFCafe Item 行 ID 不匹配")
         fields = _mapping(item.get("fields"))
         if fields is None:
-            raise WikiSourceError("FFCafe Item 缺少 fields")
+            raise WikiFormatError("FFCafe Item 缺少 fields")
+        if not _text(fields.get("Name")) or not isinstance(fields.get("Description"), str):
+            raise WikiFormatError("FFCafe Item 缺少有效的名称或描述")
 
         recipe_query = urlencode(
             {
@@ -303,11 +361,11 @@ class FFCafeClient:
             *normalize_recipe_methods(recipes, item_id=item_id),
             *normalize_gathering_methods(gathering, item_id=item_id),
         )
-        item_type = _text(_relation_fields(fields, "ItemUICategory").get("Name"))
-        market_category = _text(
-            _relation_fields(fields, "ItemSearchCategory").get("Name")
+        item_type = _field_text(_relation_fields(fields, "ItemUICategory"), "Name")
+        market_category = _field_text(
+            _relation_fields(fields, "ItemSearchCategory"), "Name"
         )
-        class_job = _text(_relation_fields(fields, "ClassJobUse").get("Name"))
+        class_job = _field_text(_relation_fields(fields, "ClassJobUse"), "Name")
         uses = tuple(
             value
             for value in (
@@ -324,8 +382,8 @@ class FFCafeClient:
             uses=uses,
             acquisition_methods=methods,
             acquisition_coverage="partial" if methods else "unavailable",
-            data_version=PINNED_VERSION,
-            schema=PINNED_SCHEMA,
+            data_version=_text(item.get("version")),
+            schema=_text(item.get("schema")),
         )
 
 

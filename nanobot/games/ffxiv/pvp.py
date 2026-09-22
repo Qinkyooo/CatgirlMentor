@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import UTC, date, datetime, time, timedelta
-from typing import Any, Final
+from typing import Any, Final, Literal
 from zoneinfo import ZoneInfo
 
 from nanobot.games.ffxiv.http import FetchError, SafeHttpClient
@@ -24,10 +24,6 @@ MAX_RULES_BYTES: Final[int] = 256 * 1024
 DEFAULT_CACHE_SECONDS: Final[float] = 1800.0
 _ENTRY_GUARD: Final[int] = 4096
 
-_DRIFT_SUGGESTION: Final[tuple[str, ...]] = (
-    "上游轮换规则已变更，请更新规则快照（nanobot/games/ffxiv/data/pvp-rules.json）后发布。",
-    "在快照更新前，请以游戏内任务搜索器显示的地图为准。",
-)
 _NETWORK_SUGGESTION: Final[tuple[str, ...]] = (
     "本次无法访问上游规则地址，结果按已核验快照推算；如需强制校验请检查网络或 tools.games.pvpRulesUrl。",
 )
@@ -56,8 +52,8 @@ class PVPService:
     """Answer PvP rotation questions from a versioned rules snapshot.
 
     Offline by default. When ``rules_url`` is configured the upstream snapshot is
-    fetched and its rotation digest compared with the bundled one; a mismatch is
-    reported as an error instead of silently answering from stale rules.
+    fetched, structurally validated and checked against its own digest. Valid
+    updates replace the in-memory rules; failed refreshes keep the last valid set.
     """
 
     def __init__(
@@ -89,10 +85,13 @@ class PVPService:
             allowed_hosts=frozenset({host}),
             max_bytes=MAX_RULES_BYTES,
         )
-        return parse_rotation_rules(response.body, origin=self._rules_url)
+        bundle = parse_rotation_rules(response.body, origin=self._rules_url)
+        if not {"frontline", "cc"}.issubset(bundle.modes):
+            raise RotationRulesError("pvp_rules_invalid", "远端规则必须包含 frontline 和 cc 两种模式")
+        return bundle
 
-    async def _active_rules(self) -> tuple[RotationRulesBundle, tuple[str, ...], str]:
-        """Resolve active rules; raise only when drift is positively detected."""
+    async def _active_rules(self) -> tuple[RotationRulesBundle, tuple[str, ...], Literal["fresh", "stale", "miss"]]:
+        """Adopt validated remote updates without requiring a new application."""
         if self._http is None or self._rules_url is None:
             return self._rules, (), "miss"
 
@@ -101,25 +100,19 @@ class PVPService:
         if cached is not None:
             age = (reference - cached[0]).total_seconds()
             if 0 <= age < self._cache_seconds:
-                return cached[1], (), "hit"
+                return cached[1], (), "fresh"
 
         try:
             remote = await self._fetch_remote()
         except FetchError:
             return (
-                self._rules,
+                cached[1] if cached is not None else self._rules,
                 (
-                    "本次无法校验社区轮换规则是否已更新，以下结果按已核验的内置规则快照推算。",
+                    "本次无法校验社区轮换规则是否已更新，以下结果按上次有效规则推算，可能已过期。",
                 ),
-                "miss",
+                "stale",
             )
 
-        if remote.rotation_digest != self._rules.rotation_digest:
-            raise RotationRulesError(
-                "pvp_rules_outdated",
-                "上游社区轮换规则与内置快照不一致，地图或轮换顺序可能已改版；"
-                "本工具不用过期规则推算。",
-            )
         self._cache = (reference, remote)
         return remote, (), "miss"
 
@@ -127,8 +120,7 @@ class PVPService:
         try:
             rules, warnings, cache_status = await self._active_rules()
         except RotationRulesError as exc:
-            suggestions = _DRIFT_SUGGESTION if exc.code == "pvp_rules_outdated" else ()
-            return error_result(exc.code, str(exc), suggestions=suggestions)
+            return error_result(exc.code, str(exc))
         try:
             return self._answer(
                 kwargs, rules=rules, warnings=warnings, cache_status=cache_status
@@ -142,7 +134,7 @@ class PVPService:
         *,
         rules: RotationRulesBundle,
         warnings: tuple[str, ...],
-        cache_status: str,
+        cache_status: Literal["fresh", "stale", "miss"],
     ) -> Any:
         action = kwargs["action"]
         mode = kwargs.get("mode", "frontline")
@@ -184,6 +176,7 @@ class PVPService:
                 "timezone": str(zone),
                 "calculatedAt": now,
                 "ruleVerifiedAt": rules.verified_at,
+                "ruleDigest": rules.rotation_digest,
                 "ruleSourceUrl": rules.source_url,
                 "basis": "community_calendar_prediction",
                 "regionParityVerified": False,
@@ -203,7 +196,7 @@ class PVPService:
                 source="community_rules",
                 source_updated_at=None,
                 cache_status=cache_status,
-                stale=False,
+                stale=cache_status == "stale",
             ),
             warnings=(
                 "依据社区日历规则离线推算，非游戏服务器实时查询；"

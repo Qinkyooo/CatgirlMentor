@@ -75,6 +75,24 @@ async def test_ffxiv_http_retries_one_transient_timeout(monkeypatch):
     assert len(calls) == 2
 
 
+@pytest.mark.parametrize("status", [502, 503, 504])
+async def test_ffxiv_http_recovers_from_one_transient_gateway_error(monkeypatch, status):
+    import nanobot.games.ffxiv.http as module
+
+    monkeypatch.setattr(module, "resolve_url_target", lambda _: (True, None, ["1.1.1.1"]))
+    calls = []
+
+    async def handler(request):
+        calls.append(request)
+        return httpx.Response(status if len(calls) == 1 else 200, content=b"updated data")
+
+    client = SafeHttpClient(timeout_seconds=5, inner_transport=httpx.MockTransport(handler))
+    response = await client.get_bytes("https://universalis.app/api/v2/marketable",
+                                      allowed_hosts=frozenset({"universalis.app"}))
+    assert response.body == b"updated data"
+    assert len(calls) == 2
+
+
 def test_housing_metadata_survives_variable_and_whitespace_changes():
     descriptions = [[f"房区 {area} 地块 {plot}" for plot in range(60)] for area in range(5)]
     script = f"const stages={json.dumps(list(STAGE_TEXT.values()))},renamed = {json.dumps(descriptions)};"

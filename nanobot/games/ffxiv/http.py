@@ -130,6 +130,9 @@ class SafeHttpClient:
                             redirect_count += 1
                             continue
 
+                        if retry_count == 0 and response.status_code in {502, 503, 504}:
+                            retry_count += 1
+                            continue
                         if not 200 <= response.status_code < 300:
                             raise FetchError(f"HTTP {response.status_code} from {hostname}")
 

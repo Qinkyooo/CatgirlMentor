@@ -71,7 +71,9 @@ class _DirectoryParser(HTMLParser):
         lowered = tag.casefold()
         if lowered == "h4":
             self._category_buffer = []
-        elif lowered == "a" and "item-card-a" in self._classes(attrs):
+        # A category plus an external link containing a title and description
+        # identifies a directory card even when the site's CSS classes change.
+        elif lowered == "a":
             self._card_url = dict(attrs).get("href")
             self._card_name = ""
             self._card_description = ""

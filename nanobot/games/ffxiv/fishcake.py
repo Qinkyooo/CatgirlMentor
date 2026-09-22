@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 import re
@@ -968,7 +969,6 @@ class _FetchClient(Protocol):
     ) -> FetchResponse: ...
 
 
-_HASHED_SCRIPT = re.compile(r"(?:^|/)[^/]+-[A-Za-z0-9_-]+\.js$")
 _PRIMARY_GUIDE_ASSET = re.compile(r"(?:^|/)tips-[A-Za-z0-9_-]+\.js$")
 _ASSET_PATTERNS = (
     (
@@ -1080,12 +1080,12 @@ def discover_script_urls(html: str | bytes, base_url: str) -> tuple[str, ...]:
     result: list[str] = []
     for source in parser.sources:
         url = _same_origin_url(source, base_url)
-        if not _HASHED_SCRIPT.search(urlsplit(url).path):
+        if not urlsplit(url).path.endswith(".js"):
             continue
         if url not in result:
             result.append(url)
-    if not result:
-        raise FishCakeFormatError("FishCake content-hashed application script is missing")
+    if not result or len(result) > 4:
+        raise FishCakeFormatError("FishCake module scripts missing or exceed limit")
     return tuple(result)
 
 
@@ -1204,15 +1204,20 @@ async def discover_current_assets(client: _FetchClient) -> FishCakeDiscovery:
     home = await client.get_bytes(FISHCAKE_HOME_URL, allowed_hosts=FISHCAKE_HOSTS)
     parser = _ScriptParser()
     parser.feed(_text(home.body))
-    if not parser.source_revision:
-        raise FishCakeFormatError("FishCake source revision is missing")
     scripts = discover_script_urls(home.body, home.url)
-    if len(scripts) != 1:
-        raise FishCakeFormatError("multiple FishCake application scripts")
-    script = await client.get_bytes(scripts[0], allowed_hosts=FISHCAKE_HOSTS)
-    return FishCakeDiscovery(
-        source_revision=parser.source_revision,
-        home=home,
-        script=script,
-        assets=discover_data_assets(script.body, script.url),
-    )
+    candidates: list[FishCakeDiscovery] = []
+    for url in scripts:
+        script = await client.get_bytes(url, allowed_hosts=FISHCAKE_HOSTS)
+        try:
+            assets = discover_data_assets(script.body, script.url)
+        except FishCakeFormatError:
+            continue
+        candidates.append(FishCakeDiscovery(
+            source_revision=parser.source_revision or hashlib.sha256(script.body).hexdigest(),
+            home=home,
+            script=script,
+            assets=assets,
+        ))
+    if len(candidates) != 1:
+        raise FishCakeFormatError("FishCake data manifest missing or ambiguous")
+    return candidates[0]
