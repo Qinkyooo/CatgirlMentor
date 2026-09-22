@@ -192,6 +192,17 @@ class InputValidationTest(unittest.TestCase):
 
 
 class RemoteRuleTest(unittest.TestCase):
+    def test_partial_remote_rules_do_not_replace_supported_modes(self):
+        payload = json.loads(SNAPSHOT_BYTES)
+        del payload["rotation"]["cc"]
+        payload["rotationDigest"] = rotation.rotation_digest({"frontline": bundled().modes["frontline"]})
+        svc = service(http=FakeHttp(body=json.dumps(payload).encode()),
+                      rules_url="https://example.invalid/rules.json")
+        result = json.loads(str(run(svc.execute(action="current"))))
+        self.assertFalse(result["ok"])
+        self.assertEqual(result["error"]["code"], "pvp_rules_invalid")
+        self.assertIsNone(svc._cache)
+
     def test_matching_upstream_keeps_answering(self):
         http = FakeHttp(body=SNAPSHOT_BYTES)
         svc = service(http=http, rules_url="https://example.invalid/rules.json")
@@ -199,7 +210,7 @@ class RemoteRuleTest(unittest.TestCase):
         self.assertTrue(result["ok"], result)
         self.assertEqual(http.calls, 1)
 
-    def test_drifted_upstream_refuses_to_guess(self):
+    def test_valid_upstream_update_is_adopted(self):
         payload = json.loads(SNAPSHOT_BYTES.decode("utf-8"))
         payload["rotation"]["frontline"]["order"] = ["seize", "secure", "naadam"]
         payload["rotationDigest"] = rotation.rotation_digest(
@@ -215,9 +226,17 @@ class RemoteRuleTest(unittest.TestCase):
         http = FakeHttp(body=json.dumps(payload).encode())
         svc = service(http=http, rules_url="https://example.invalid/rules.json")
         result = json.loads(str(run(svc.execute(action="current"))))
-        self.assertFalse(result["ok"])
-        self.assertEqual(result["error"]["code"], "pvp_rules_outdated")
-        self.assertTrue(result["suggestions"])
+        self.assertTrue(result["ok"], result)
+        self.assertEqual(result["data"]["ruleDigest"], payload["rotationDigest"])
+        expected = service(rules=rotation.parse_rotation_rules(json.dumps(payload).encode(), origin="test"))
+        expected_result = json.loads(str(run(expected.execute(action="current"))))
+        self.assertEqual(result["data"]["current"], expected_result["data"]["current"])
+        # A later network failure must not roll the accepted update back.
+        svc._cache_seconds = 0
+        http._error = FetchError("offline")
+        fallback = json.loads(str(run(svc.execute(action="current"))))
+        self.assertEqual(fallback["data"]["ruleDigest"], payload["rotationDigest"])
+        self.assertTrue(fallback["freshness"]["stale"])
 
     def test_unreachable_upstream_degrades_with_warning(self):
         http = FakeHttp(error=FetchError("boom"))

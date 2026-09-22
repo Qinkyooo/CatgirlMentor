@@ -20,6 +20,7 @@ from .cache import atomic_write_json
 from .fishcake import (
     FISHCAKE_HOSTS,
     DiscoveredAsset,
+    FishCakeFormatError,
     discover_current_assets,
     normalize_fishcake_assets,
     serialize_fishing_snapshot,
@@ -160,7 +161,10 @@ class FishingSnapshotManager:
         if not all(isinstance(item, str) for item in warning_values):
             return None
         try:
-            data_path = self._data_path(revision)
+            snapshot_key = data.get("snapshotKey", revision)
+            if not isinstance(snapshot_key, str):
+                return None
+            data_path = self._data_path(snapshot_key)
         except FishingSnapshotUnavailableError:
             return None
         if not data_path.is_file():
@@ -186,6 +190,7 @@ class FishingSnapshotManager:
             {
                 "schemaVersion": 1,
                 "sourceRevision": status.source_revision,
+                "snapshotKey": status.data_path.parent.name,
                 "fetchedAt": status.fetched_at.isoformat(),
                 "sourceUpdatedAt": (
                     status.source_updated_at.isoformat()
@@ -219,8 +224,16 @@ class FishingSnapshotManager:
                 return current
             try:
                 discovery = await discover_current_assets(self._client)
-                data_path = self._data_path(discovery.source_revision)
-                if current is not None and current.source_revision == discovery.source_revision:
+                # A website may replace data without bumping its version meta tag.
+                # Content-address snapshots so cached readers also see those changes.
+                responses = await self._download_assets(discovery.assets)
+                fingerprint = json.dumps([
+                    discovery.source_revision,
+                    [(role, hashlib.sha256(response.body).hexdigest())
+                     for role, response in sorted(responses.items())],
+                ]).encode()
+                data_path = self._data_path(hashlib.sha256(fingerprint).hexdigest())
+                if current is not None and current.data_path == data_path:
                     refreshed = replace(
                         current,
                         fetched_at=now,
@@ -232,10 +245,11 @@ class FishingSnapshotManager:
                     )
                     self._promote(refreshed)
                     return refreshed
-                responses = await self._download_assets(discovery.assets)
-            except FetchError as exc:
+            except (FetchError, FishCakeFormatError) as exc:
                 if current is not None:
-                    return replace(current, state="stale")
+                    return replace(current, state="stale", warnings=(
+                        *current.warnings, f"鱼糕更新未通过验证，暂用上次有效快照：{exc}",
+                    ))
                 raise FishingSnapshotUnavailableError(str(exc)) from exc
 
             revision_root = data_path.parent
@@ -255,18 +269,25 @@ class FishingSnapshotManager:
                     raise OSError(f"FishCake asset hash verification failed for {filename}")
 
             normal_response = responses["normal_fish"]
-            normalized = normalize_fishcake_assets(
-                normal_fish=normal_response.body,
-                data_json=responses["data_json"].body,
-                fishing_spot=responses["fishing_spot"].body,
-                fish_bait_and_mooch=responses["fish_bait_and_mooch"].body,
-                item_name_chs=responses["item_name_chs"].body,
-                place_name_chs=responses["place_name_chs"].body,
-                source_revision=discovery.source_revision,
-                source_sha256=hashlib.sha256(normal_response.body).hexdigest(),
-                fetched_at=now,
-                baseline=self._baseline,
-            )
+            try:
+                normalized = normalize_fishcake_assets(
+                    normal_fish=normal_response.body,
+                    data_json=responses["data_json"].body,
+                    fishing_spot=responses["fishing_spot"].body,
+                    fish_bait_and_mooch=responses["fish_bait_and_mooch"].body,
+                    item_name_chs=responses["item_name_chs"].body,
+                    place_name_chs=responses["place_name_chs"].body,
+                    source_revision=discovery.source_revision,
+                    source_sha256=hashlib.sha256(normal_response.body).hexdigest(),
+                    fetched_at=now,
+                    baseline=self._baseline,
+                )
+            except FishCakeFormatError as exc:
+                if current is None:
+                    raise
+                return replace(current, state="stale", warnings=(
+                    *current.warnings, f"鱼糕更新未通过验证，暂用上次有效快照：{exc}",
+                ))
             normalized_payload: object = json.loads(serialize_fishing_snapshot(normalized))
             atomic_write_json(data_path, normalized_payload)
             warnings = tuple(

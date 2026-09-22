@@ -12,7 +12,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TypeAlias, cast
 
-WIKI_TTL = timedelta(days=180)
+WIKI_TTL = timedelta(days=1)
 TOOL_DIRECTORY_TTL = timedelta(hours=24)
 
 

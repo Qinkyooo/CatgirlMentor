@@ -46,6 +46,13 @@ async def smoke(live: bool) -> None:
         await query(services.fishing, action="weather", zone="森都")
         market = await query(services.market, action="price", item_name="猫小胖", scope="陆行鸟区")
         assert market["data"]["item"]["rowId"] == 9347
+        assert market["data"]["item"]["dataVersion"]
+        item = await query(services.knowledge, action="item", query="猫小胖")
+        assert item["kind"] == "knowledge_item", "FFCafe failed and fell back to a wiki"
+        assert item["data"]["itemId"] == 9347
+        await query(services.knowledge, action="guide", query="龙骑士循环")
+        await query(services.knowledge, action="guide", query="钓鱼", tool_site=True)
+        await query(services.pvp, action="current")
         vacancies = await query(services.housing, action="vacancies", server="红玉海", size="S")
         assert HOUSING_DISCLAIMER in vacancies["warnings"]
         cards = vacancies["data"]["cards"]

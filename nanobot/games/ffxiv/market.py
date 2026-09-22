@@ -18,7 +18,7 @@ from .housing import SERVER_IDS
 from .http import FetchError, FetchResponse
 from .result import error_result, success_result
 from .types import Evidence, Freshness
-from .wiki import PINNED_VERSION, ItemCandidate, WikiSourceError, item_name_similarity
+from .wiki import ItemCandidate, WikiFormatError, WikiSourceError, item_name_similarity
 
 UNIVERSALIS_HOSTS = frozenset({"universalis.app"})
 UNIVERSALIS_API = "https://universalis.app/api/v2"
@@ -339,7 +339,7 @@ class MarketService:
             name_zh=selected.name_zh,
             item_level=selected.item_level,
             marketable=marketable,
-            data_version=PINNED_VERSION,
+            data_version=selected.data_version,
         )
 
     async def execute(self, **kwargs: Any) -> Any:
@@ -369,7 +369,9 @@ class MarketService:
             )
         try:
             item = await self._resolve_item(item_name)
-        except (FetchError, MarketPayloadError, WikiSourceError) as exc:
+        except (WikiFormatError, MarketPayloadError) as exc:
+            return error_result("source_format_changed", f"物品数据结构不兼容，未生成价格：{exc}")
+        except (FetchError, WikiSourceError) as exc:
             return error_result("market_unavailable", f"物品或市场数据源当前不可用：{exc}。请稍后重试。")
         if not isinstance(item, ItemRef):
             return item
@@ -434,7 +436,9 @@ class MarketService:
                     warnings += (
                         "未指定 quality，聚合价格默认 NQ（普通品质）口径。",
                     )
-        except (FetchError, MarketPayloadError) as exc:
+        except MarketPayloadError as exc:
+            return error_result("source_format_changed", f"行情数据结构不兼容，未生成价格：{exc}")
+        except FetchError as exc:
             return error_result("market_unavailable", f"市场价格当前不可用：{exc}")
 
         statistics_at = metrics.get("statisticsAt")

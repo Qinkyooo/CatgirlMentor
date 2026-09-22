@@ -5,7 +5,10 @@ from urllib.parse import parse_qs, urlsplit
 
 from nanobot.games.ffxiv.http import FetchResponse
 from nanobot.games.ffxiv.market import MarketService
-from nanobot.games.ffxiv.wiki import PINNED_SCHEMA, PINNED_VERSION, FFCafeClient
+from nanobot.games.ffxiv.wiki import FFCafeClient
+
+PINNED_SCHEMA = "exdschema@2:rev:83e965d091116f895d5b17573cc5d12909a5f407"
+PINNED_VERSION = "2026071600010000"
 
 
 class ItemAndMarketHttp:
