@@ -50,7 +50,9 @@ def build(output: Path, python_zip: Path, iscc: Path | None, webui_built: bool =
     requirements = ROOT / "packaging" / "windows" / "requirements.txt"
     if not requirements.is_file():
         raise SystemExit("Generate packaging/windows/requirements.txt using uv export --extra desktop --no-dev --no-emit-project first.")
-    run("uv", "pip", "install", "--python", str(runtime / "python.exe"), "--target", str(runtime / "Lib" / "site-packages"), "--require-hashes", "-r", str(requirements))
+    # RapidFuzz's optional unsigned extensions can be blocked by Windows Smart
+    # App Control. Build its supported pure-Python wheel from the hashed sdist.
+    run("uv", "pip", "install", "--python", str(runtime / "python.exe"), "--target", str(runtime / "Lib" / "site-packages"), "--require-hashes", "--no-binary", "rapidfuzz", "--config-settings-package", "rapidfuzz:wheel.cmake=false", "-r", str(requirements))
     run("uv", "pip", "install", "--python", str(runtime / "python.exe"), "--target", str(runtime / "Lib" / "site-packages"), "--no-deps", str(wheel))
     # Local-wheel provenance contains the builder's absolute checkout path.
     for provenance in (runtime / "Lib" / "site-packages").glob("*.dist-info/direct_url.json"):
@@ -63,6 +65,7 @@ def build(output: Path, python_zip: Path, iscc: Path | None, webui_built: bool =
     # Embedded Python is isolated from PYTHONPATH and registered system installs.
     run(str(runtime / "python.exe"), "-c", "import nanobot.desktop.server, pystray; from nanobot.config.schema import Config; Config(); print('desktop runtime OK')", cwd=stage)
     run(str(runtime / "python.exe"), str(ROOT / "scripts/smoke_ffxiv.py"), cwd=stage)
+    run(str(runtime / "python.exe"), str(ROOT / "scripts/smoke_windows_compat.py"), cwd=stage)
     installed = runtime / "Lib" / "site-packages" / "nanobot"
     for required in ("web/dist/index.html", "desktop/static/index.html", "desktop/static/tray-32.png", "games/ffxiv/data/guide.sqlite3", "games/ffxiv/ffxiv-servers.json"):
         if not (installed / required).is_file():

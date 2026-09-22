@@ -13,6 +13,20 @@ dist/windows-source-updates/CatgirlMentor/runtime/python.exe scripts/smoke_ffxiv
 
 ## 快速开始
 
+### Windows 11 智能应用控制
+
+Windows 安装版使用 RapidFuzz 3.14.6 的官方纯 Python 构建，避免加载其未签名的原生加速
+`.pyd` 文件。构建仍从 `requirements.txt` 的固定版本及哈希获取源码包，通过上游
+`wheel.cmake=false` 配置构建，不修改第三方算法。文件修改差异功能保留，大文件计算速度
+可能低于原生实现。
+
+打包脚本自动运行 `scripts/smoke_windows_compat.py`：禁止 RapidFuzz 原生模块加载，验证真实
+文件差异计算，并确认发行目录不含其 `.pyd` 文件。每次重新打包都会执行。
+
+这项检查针对已确认的 RapidFuzz 拦截；开发机为 Windows 10，不等同于 Windows 11 智能应用
+控制的完整认证。安装包和启动器当前仍未正式签名，其他原生组件也可能受目标机器策略限制。
+若出现新拦截，应依据该机器的 Code Integrity 日志定位具体文件，不需要关闭系统保护。
+
 1. 双击 `CatgirlMentor-0.3.5-Windows-x64-Setup.exe`，安装到当前用户目录，无需管理员权限。
 2. 从桌面或开始菜单打开 CatgirlMentor，在“模型配置”中填写服务商和 API 密钥，点击“获取模型”后从下拉列表选择，也可以手动输入模型名称。
 3. 点击“保存并测试连接”，成功后回到“概览”，点击“启动后台”，再打开聊天界面。
